@@ -1,0 +1,1921 @@
+---
+title: "Informe TAEDE"
+subtitle: "Modelo de clasificación para predecir infartos cerebrales"
+authors: "Jose Ramón Cortés Alcaide, Roberto De Vicente De la Cruz, Víctor Manuel García-Minguillán, Jesús Romero Nieto, Nicolás Tapiador Sobrino"
+date: "2022-31-12"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  word_document:
+    toc: yes
+    toc_depth: '5'
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r librerías y carga del dataset, echo=FALSE, inlcude=FALSE, message=FALSE, warning=FALSE}
+library(htmlTable) #Realizar tablas formato html.
+library(dplyr) # Trataiento de los datos.
+library(ggplot2) #visualización.
+library(readr) #carga de df.
+library(imbalance) #Remuestreo.
+library(visdat) #identificación de valores perdidos.
+library(plotly) # Gráficos interactivos.
+library(ggcorrplot) # Matriz de correlación.
+library(GGally) # Funciones para crear y visualizar correlación.
+library(gridExtra) # Agrupacion de figuras.
+library(car)  # Funciones para aplicar la regresion.
+library(nortest) #prueba de Anderson-Darling.
+library(MVN) #prueba de normalidad multivariante.
+library(MASS) # Estimar modelos glm.
+library(xgboost) #libraria para el modelo xgboost.
+library(tidyverse) # Colección de paquetes para análisis, manipulcación y exploración de datos.
+library(caret) # Librería para la matriz de confusión y realizacion de modelos.
+library(pROC) # Curva ROC.
+library(ROCR) # Curva ROC.
+library(DT) #Para hacer tablas función: datatable()
+library(biotools) # Herramientas diseñadas para evaluación de análisis discriminante.
+library(leaps) # Herramientas para regresión de mejor subconjunto.
+library(glmnet) # Procedimientos para ajustar regresiones.
+library(randomForest) #Para realizar el modelo RandomForest
+library(stats) # Funciones para cálculos estadísticos complejos.
+library(boot) # Herramientas para realizar validación cruzada
+library(e1071) # Funciones para el análisis de clase latente.
+```
+
+```{r carga df, echo=FALSE, include=FALSE, warning=FALSE}
+brain_stroke <- read_csv("brain_stroke.csv")
+```
+
+# MODELOS DE CLASIFICACIÓN PARA PREDECIR INFARTOS CEREBRALES. 
+
+## INTRODUCCIÓN.
+
+### CONTEXTO Y JUSTIFICACIÓN DEL TEMA.
+
+Actualmente, la enfermedad cerebrovascular aguda o más conocido como **infarto cerebral** o **ictus**, es la tercera causa de muerte global en España. Este sucede cuando se detiene o disminuye el flujo sanguíneo a parte del cerebro. Al no poder recibir el oxígeno y nutrientes que necesitan, las células cerebrales comienzan a morir en minutos. Esto puede causar un daño grave en el cerebro, llegando a provocar **discapacidad permanente** e incluso la **muerte**. La rapidez en estos casos es fundamental, cuanto antes se detecte, el tratamiento es más específico y eficaz por lo que, los daños mencionados con anterioridad pueden reducirse significativamente. La tendencia demográfica mundial se encamina hacia el envejecimiento de la población debido al aumento de la esperanza de vida, por este motivo, los infartos cerebrales se ha convertido en una de las enfermedades más comunes debido a que se producen mayoritariamente en personas mayores.
+
+La prevención y el diagnóstico temprano de los infartos cerebrales es crucial para **reducir** la mortalidad y la discapacidad asociada a este suceso. Por ello, es necesario disponer de **datos** de alta calidad sobre los factores de riesgo y las características que cada individuo tenga de cara a diagnosticar dicha enfermedad. En este estudio, se cuenta con una muestra de pacientes médicos que incluye información sobre su estado de salud y sí han desarrollado o no, un infarto cerebral. Esta información puede servir para el desarrollo de diversas herramientas valiosas que pueda identificar **patrones y tendencias**, evaluar el impacto de las intervenciones preventivas y de tratamiento, así como desarrollar modelos de predicción y asesoramiento clínico. Por todas estas razones, el análisis de una base de datos médica sobre infartos cerebrales puede proporcionar información valiosa para comprender mejor los mecanismos subyacentes, identificar factores de riesgo y protección, y evaluar el **impacto** de las intervenciones preventivas y de tratamiento.
+
+### OBJETIVOS. 
+
+Una vez expuestos los criterios fundamentales que abarcan este estudio. El **objetivo general** será desarrollar un modelo de clasificación que permitan identificar a los pacientes que en el momento de ingreso, puedan estar sufriendo un infarto cerebral, de esta manera, la herramienta desarrollada pueda servir de asesoramiento clínico de cara a facilitar a los profesionales sanitarios a tomar decisiones, sobre el tratamiento y el seguimiento de los pacientes con infartos cerebrales.
+
+Este objetivo general vendrá derivado por la elaboración de pequeños **objetivos específicos** que tendrán, relación con el estudio:
+
+* **Determinación de las variables de estudio:** Se tendrá que determinar el número de variables explicativas óptimo para una correcta clasificación del modelo, eligiendo entre los modelos más simples con menos variables y una precisión aceptable a los más complejos y específicos a la hora de clasificar.
+
+* **Proceso de limpieza y preparación de los variables**, para poder aplicar las técnicas estadísticas previas a los modelos.
+
+* Estimar un **modelo de clasificación predictivo** con el que poder diagnosticar a los pacientes, introduciendo los síntomas establecidos.
+
+### ESTRUCTURA DEL TRABAJO.
+
+Para poder lograr y conseguir los objetivos marcados, el estudio se ha dividido en diferentes capítulos, concretamente en tres. En el primero de ellos, se hablará de la **metodología** que se llevará a cabo en el estudio, de qué fuentes se extraerán los datos con los que se va a trabajar, la **especificación** de las variables consideradas y un **análisis exploratorio*** de la base de datos, aplicándose en este, ciertas técnicas de preparación y limpieza de los datos. Una vez que los datos estén listos, se llevará a cabo la **estimación** de los **modelos de clasificación.**
+
+En el segundo punto se desarrollará todo el proceso de elaboración de los **modelos de clasificación**, así como la introducción de los **resultados** obtenidos en los diferentes **modelos de clasificación**. El estudio se cerrará con el ultimo y tercer punto, **comparaciones y conclusiones de los modelos**. Dichas **comparaciones** se llevarán a cabo en base a cuatro indicadores; La **especificidad de los modelos**, los propios **rendimientos** de los mismos o **accuracy** y par ultimo, una evaluación de la bondad, utilizando la **curva ROC** y el índice o indicador **Kappa**. Por ultimo, las **conclusiones** reunirán las distintas **deducciones** a las que se ha llegado en una forma estructural, en base a todo el tratamiento y trabajo realizado con los datos y las **variables seleccionadas**.
+
+## 1. METODOLOGÍA.
+
+Teniendo en cuenta que la finalidad de este estudio se centra en la identificación de pacientes con un mayor riesgo de sufrir un infarto cerebral, el diseño de este, se ha orientado a la elaboración de **modelos de clasificación**, el cual permitirá, asignar una etiqueta o categoría a una nueva observación, en base a las categorías o atributos seleccionados. Es decir, el modelo de clasificación podrá predecir a qué categoría pertenecerá un nuevo paciente en base a una serie de características que se desarrollarán a lo largo del estudio.
+
+### 1.1 ESPECIFICACIÓN DE LAS VARIABLES: Variables Consideradas.
+
+Antes de comenzar con el desarrollo del **modelo de clasificación predictivo**, se debe realizar una presentación de las **variables** que van a ser de la partida del estudio, así como un análisis exploratorio. Para que de esta manera, se pueda comprender con precisión los resultados obtenidos en el modelo. Para ello, en la tabla Tabla 1.1 se recogen las distintas **variables** que entrarán en la especificación del modelo.
+
+```{r, echo = FALSE}
+Nombres <- c( "gender", "hypertension", "heart_disease", "ever_married", "work_type", "residence_type", "smoking_status", "stroke", "age",
+              "bmi", "avg_glucose_level")
+Descripción <- c("Género de los individuos", "Si sufre o no de hipertensión", "Si sufre o no de enfermedad cardiaca", "Estado civil de los individuos", "Situación laboral", "Lugar de residencia", "Fumadores o no fumadores", "Si sufre o no infarto cerebral", "Edad", "Indice de masa corporal", "Nivel medio de glucosa en sangre")
+Fuente <- c("Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle", "Kaggle")
+
+```
+
+```{r, echo = FALSE}
+# Crear una tabla a partir de los vectores
+variables_table <- data.frame(Nombres, Descripción, Fuente)
+
+# Crear una tabla en formato HTML a partir de la tabla
+html_table <- htmlTable(variables_table, rnames = FALSE)
+htmlTable(html_table,
+          caption = "Tabla 1.1: Variables de estudio")
+```
+
+Como en cualquier conjunto de datos, las **variables** que lo componen presentan ciertas características. Normalmente, las variables pueden dividirse en dos grandes grupos, **variables categóricas** y **variables numéricas**. En primer lugar, con respecto a las variables categóricas, son un tipo de variables que se utilizan para dividir a una población en categorías o grupos. Algunas características que pueden utilizarse para describir una variable categórica es que sus valores pueden ser limitados y dividirse en distintas categorías. En este estudio, existen varias variables que siguen estas características como son; *gender* (Género de los individuos), *hypertension* (Si sufre o no de hipertension), *heart_disease* (Si sufre o no de enfermedad cardíaca), *ever_married* (Estado civil de los individuos), *work_type* (Situación laboral), *residence_type* (Lugar de residencia), *smoking_status* (Tipo de fumadores) y *stroke* (Si sufre o no infarto cerebral).
+
+En segundo lugar, las **variables numéricas** se caracterizan por ser **variables** que se utilizan para medir u observar una cantidad o magnitud. Alguna de las numerosas características que permiten describir a una **variable numérica** pueden ser las siguientes; son **variables** que pueden tomar cualquier valor dentro de un rango determinado (numérica continua), además, pueden tomar también valores específicos o discretos (numérica discreta). Algunas de las **variables especificadas** de este estudio, siguen estas características, concretamente 3 y son las siguientes; *age* (Edad), *bmi* (Indice de masa corporal) y *avg_glucose_level* (Nivel medio de glucosa en sangre).
+
+### 1.2 MUESTRA.
+
+La **muestra**, se caracteriza por tener un total de **11 variables**, cada una de ellas recoge un total de **4981 observaciones**. Tal y como se ha introducido anteriormente, existe variedad en los datos, es decir, variables con distinto tipo de naturaleza, principalmente dos, categóricas y numéricas. A lo largo del estudio, se aplicarán diferentes **técnicas estadísticas** para poder conocer en mayor profundidad los datos y, en caso de ser necesario, realizar diferentes **transformaciones** en estos, para de esta manera, evitar distorsiones en los **resultados**.
+
+
+### 1.3 ANÁLISIS EXPLORATORIO: 
+
+Una vez realizada la presentación de las **variables**, así como la descripción de la **muestra**, es fundamental dar paso al **análisis exploratorio**, para así, conocer los datos que se van a tratar antes de comenzar a construir los **modelos de clasificación** pertinentes. Realizar un **análisis exploratorio** de los datos antes de entrenar un modelo de predicción es importante por varias razones:
+
+* **Conocer el conjunto de datos:** El **análisis exploratorio** permite conocer mejor el conjunto de datos con el que se está trabajando, incluyendo el número de **observaciones y variables**, la estructura, forma de los datos y cualquier patrón o tendencia que puedan presentar. Esto ayudará a elegir el **modelo de predicción** adecuado y, dar **solución** al problema de manera más precisa.
+
+* **Detectar problemas de calidad de los datos:** Aplicar **técnicas** de este tipo, ayudará a detectar problemas en estos, tales como, valores atípicos o perdidos. Si no se abordan adecuadamente este tipo de situaciones, no solo puede afectar negativamente al rendimiento del modelo, si no también, a la mera interpretación de los **resultados**.
+
+* **Mejorar el rendimiento del modelo:** Identificación de patrones y relaciones en los datos que puede ser útil para mejorar el rendimiento del modelo. Por ejemplo, se pueden encontrar variables que estén altamente correlacionadas entre sí, lo que permitiría simplificar y por tanto, seleccionar solamente una de ellas en el modelo en lugar de incluir ambas, reduciendo la complejidad de este y a su vez, mejorar su rendimiento.
+
+En resumen, el **análisis exploratorio** es una parte esencial del proceso de modelado de **predicción**, ya que, en base a todos los aspectos mencionados anteriormente, permite conocer mejor el conjunto de datos, detectar problemas de calidad en estos y mejorar el rendimiento del modelo. 
+
+
+```{r cambio de nombre de las variables, include=FALSE, warning=FALSE}
+brain_stroke = rename(brain_stroke, residence_type = Residence_type)
+```
+
+```{r factor, include=FALSE, warning=FALSE}
+brain_stroke$gender <- factor(brain_stroke$gender, levels = c("Female", "Male"))
+brain_stroke$hypertension <- factor(brain_stroke$hypertension, levels = c("0", "1"), labels = c("No", "Yes"))
+brain_stroke$heart_disease <- factor(brain_stroke$heart_disease, levels = c("0", "1"), labels = c("No", "Yes"))
+brain_stroke$ever_married <- factor(brain_stroke$ever_married, levels = c("No", "Yes"))
+brain_stroke$work_type <- factor(brain_stroke$work_type, levels = c("children", "Govt_job","Private","Self-employed", "Neverworked"))
+brain_stroke$residence_type <- factor(brain_stroke$residence_type, levels = c("Rural", "Urban"))
+brain_stroke$smoking_status <- factor(brain_stroke$smoking_status, levels = c("never smoked", "formerly smoked", "smokes", "Unknown"))
+brain_stroke$stroke <- factor(brain_stroke$stroke, levels = c("0", "1"), labels = c("No", "Yes"))
+```
+
+#### 1.3.1 Missing Values y Outliers.
+
+Teniendo en cuenta todo lo anterior, se procede a comenzar con el **análisis de la existencia** de **missing values** (valor perdidos) y **outliers** (valores atípicos). Es importante para el estudio, que en la muestra, todas las variables presenten valores, es decir, que no existan valores perdidos, para ello, todas las variables han sido pasadas por un proceso de filtrado para la detección de este tipo de casos, en el Gráfico 1.1 se presentan los resultados obtenidos en este proceso de detección de **valores perdidos**.
+
+```{r outliers, echo=FALSE, warning=FALSE}
+vis_miss(brain_stroke) +
+  ggtitle("Gráfico 1.1 : Representación de Missing values")
+```
+
+De los resultados del proceso de detección de valores perdidos (missing values) mostrados en el gráfico 1.1, se puede comprobar que no existe ningún valor nulo o perdido en la base de datos, es decir, la base de datos presenta el 100% de las observaciones, punto muy positivo para el análisis, ya que no es necesario la eliminación de ninguna de estas. 
+
+#### 1.3.2 Distancia de Mahalanobis
+
+En cuanto al análisis de posibles **outliers o valores atípicos**, cabe destacar que la muestra presenta un gran número de variables, punto muy a tener en cuenta ya que existen varias técnicas para la búsqueda de este tipo de datos. En otro tipo de situación (sobre todo en aquellas en las que la muestra tiene pocas variables) lo mas optimo seria realizar una valoración individual para cada variable, pero en este caso, al tener una base de datos que cuenta con un total de 11 variables, esta opción se vuelve inviable en términos de costes y optimización de tiempo.
+
+Es por ello, que se ha decidido aplicar la técnica de la **"Distancia de Mahalanobis"**. Esta técnica describe la distancia entre cada punto de datos y el centro de masa. Cuando un punto se encuentra en el centro de masa, la **distancia de Mahalanobis** es igual a cero y cuando un punto de datos se encuentra distante del centro de masa, la distancia es mayor a cero. Por lo tanto, los puntos de datos que se encuentran lejos del centro de masa se consideran **valores atípicos**.
+
+La **distancia de Mahalanobis** se calcula para cada **observación** en el conjunto de datos, dándele a cada **observación** un peso como inverso de la distancia de Mahalanobis. Las **observaciones** con valores extremos obtienen menores pesos. Finalmente, se ejecuta una **regresión ponderad**a para minimizar el efecto de los valores extremos. En el Gráfico 1.2, se muestran los resultados correspondientes a este proceso de detección de **valores atípicos**.
+
+```{r mahalanobis, echo=FALSE}
+brain_numeric <- brain_stroke |> dplyr::select(avg_glucose_level,bmi, age)
+MAHALANOBIS <- mahalanobis(brain_numeric[],
+center = colMeans(brain_numeric[]),
+cov=cov(brain_numeric[]))
+brain_maha <- cbind(brain_numeric, MAHALANOBIS)
+
+ggplot(data = brain_maha, map = (aes(y = MAHALANOBIS))) +
+geom_boxplot(fill = "cadetblue2") +
+ggtitle("Grafico 1.2: DISTANCIA DE MAHALANOBIS") + ylab("Mahalanobis")
+```
+  
+```{r, include=FALSE}
+Q1M <- quantile (brain_maha$MAHALANOBIS, c(0.25))
+Q3M <- quantile (brain_maha$MAHALANOBIS, c(0.75))
+brain_maha %>% filter(MAHALANOBIS > Q3M + 1.5*IQR(MAHALANOBIS) | MAHALANOBIS < Q1M - 1.5*IQR(MAHALANOBIS)) 
+```
+
+Como puede observar en el gráfico Gráfico 1.2, existen muchos casos de **valores atípicos**, dato que a priori puede parecer muy negativo, pero es importante tener en cuenta que, al tratarse de una base de datos médica, estos **casos atípicos**, pueden determinar en gran medida si una persona que acude al hospital, puede sufrir o no, un infarto cerebral. Por todas estas razones, se ha decidido no proceder a su eliminación y por tanto, seguir con en análisis sin descartarlos pero, teniendo en cuenta el **gran porcentaje** que representan.
+
+#### 1.3.3 Remuestro
+
+Una vez terminados los procesos de detección de valores perdidos y atípicos, es importante conocer en profundidad de manera individual, la **variable predictora** de este estudio, es decir, la variable *stroke* (Si sufre o no infarto cerebral). En este caso particular, *stroke* cuenta con solo un `r round(imbalanceRatio(as.data.frame(brain_stroke), classAttr = "stroke")*100,2)`% de casos positivos, mientras que el resto, son casos negativos. 
+
+Esto puede inducir a problemas a la hora de construir un **modelo de clasificación** por la escasa información del conjunto de datos más importante y del que está centrado este análisis. Además, esto también puede provocar un problema de **interpretabilidad**, debido a la alta posibilidad de obtener un modelo con un rendimiento muy óptimo para clasificar a los individuos que no van a sufrir infarto cerebral y un pésimo rendimiento para el caso contrario, teniendo un muy buen nivel de precisión global.
+
+Por ello, se va a proceder a aplicar la técnica de remuestreo *Smote* (Synthetic Minority Oversampling Technique) en los casos positivos, de forma que la repartición sea más representativa, llevando a los casos positivos a representar un 20% de la muestra.
+
+```{r, include=FALSE}
+round(imbalanceRatio(as.data.frame(brain_stroke), classAttr = "stroke")*100,2)
+```
+
+```{r, echo=FALSE}
+brain_stroke_n <- brain_stroke
+brain_stroke_n$gender <- as.integer(brain_stroke_n$gender)
+brain_stroke_n$hypertension <- as.integer(brain_stroke_n$hypertension)
+brain_stroke_n$heart_disease <-as.integer(brain_stroke_n$heart_disease)
+brain_stroke_n$ever_married <- as.integer(brain_stroke_n$ever_married)
+brain_stroke_n$work_type <- as.integer(brain_stroke_n$work_type)
+brain_stroke_n$residence_type <- as.integer(brain_stroke_n$residence_type)
+brain_stroke_n$smoking_status <- as.integer(brain_stroke_n$smoking_status)
+```
+
+```{r, echo=FALSE}
+set.seed(141293)
+brain_oversampled <- oversample(as.data.frame(brain_stroke_n), classAttr = "stroke", ratio = 0.25, method = "SMOTE")
+```
+
+**SMote** (Synthetic Minority Oversampling Technique) es una técnica de remuestreo utilizada para tratar desequilibrios de clases en un conjunto de datos. Cuando hay un desequilibrio de clases, significa que hay una clase que es mucho más numerosa que otras clases, lo que puede afectar negativamente al rendimiento del modelo de clasificación.
+
+SMote funciona creando **observaciones sintéticas** para la clase minoritaria utilizando información de las observaciones existentes de esa clase. Para hacer esto, SMote utiliza un procedimiento que consiste en los siguientes pasos:
+
+1. Selecciona dos observaciones aleatorias de la clase minoritaria.
+
+2. Calcula la diferencia entre las dos observaciones seleccionadas.
+
+3. Genera una nueva observación sintética ubicada a una distancia aleatoria entre las dos observaciones seleccionadas en la dirección de la diferencia calculada.
+
+Repite los pasos 1-3 hasta que se haya generado el número deseado de observaciones sintéticas.
+
+De esta manera, SMote permite **aumentar el tamaño** de la clase minoritaria sin tener que recopilar más datos reales, lo que puede ser útil en casos en los que es difícil o costoso obtener más datos. En la tabla Tabla 1.2, se muestran los resultados relacionados con la nueva distribución de casos para la variable *stroke*.
+
+```{r, echo=FALSE}
+balance_over <- brain_oversampled %>%
+group_by(stroke) %>%
+summarize(n = n()) %>%
+mutate(prop = round(n / sum(n), 2)) 
+
+datatable(balance_over, caption = "Tabla 1.2: Proporción del remuestreo")
+```
+
+Ahora, el *data_frame* que se usará para predecir con la mayor exactitud posible la pertenencia a un grupo u otro dentro de `stroke` será *brain_oversampled*
+
+```{r, echo = FALSE}
+brain_oversampled_r <- brain_oversampled
+```
+
+
+#### 1.3.4 Agrupación de datos
+
+Realizada la **técnica de remuestreo**, es interesante observar y conocer, como se agrupan los datos de las **variables explicativas** con respecto al termino **independiente** (stroke). Para ello, se han elaborado una serie de gráficos de histograma para visualizar y comprender la distribución de las variables, además de detectar patrones o tendencias en los datos.
+
+```{r, echo=FALSE, warning=FALSE}
+hage <- ggplot(data = brain_oversampled, aes(x = age)) + 
+geom_histogram(position = "identity", 
+               alpha = 0.7, 
+               aes(fill = as.factor(stroke)))+
+  labs(title="Grafico 1.3: Agrupación de datos") +
+labs(fill = "stroke")
+
+hbmi <- ggplot(data = brain_oversampled, aes(x = bmi)) + 
+geom_histogram(position = "identity", 
+               alpha = 0.7, 
+               aes(fill = as.factor(stroke)))+
+labs(fill = "stroke")
+
+havg <- ggplot(data = brain_oversampled, aes(x = avg_glucose_level)) + 
+geom_histogram(position = "identity", 
+               alpha = 0.7, 
+               aes(fill = as.factor(stroke)))+
+labs(fill = "stroke")
+
+grid.arrange(hage, hbmi, havg)
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+bar_gender<- brain_oversampled %>% 
+  ggplot(aes(gender, fill= stroke)) +
+  geom_bar(position= position_fill()) + 
+  labs(title='Grafico 1.4: Agrupación de datos') +
+  xlab('Gender')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. Female  - 2. Male")
+
+bar_hypertension<- brain_oversampled %>% 
+  ggplot(aes(hypertension, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  xlab('Hypertension')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. No - 2. Yes")
+
+bar_heartdisease<- brain_oversampled %>% 
+  ggplot(aes(heart_disease, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  xlab('Heart Disease')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. No - 2. Yes")
+
+bar_smokingstatus<- brain_oversampled %>% 
+  ggplot(aes(smoking_status, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  xlab('Smoking Status')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. Never - 2. Formerly - 3. Smokes - 4. Unknown")
+
+grid.arrange(bar_gender, bar_hypertension, bar_heartdisease, bar_smokingstatus)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+bar_married<- brain_oversampled %>% 
+  ggplot(aes(ever_married, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  labs(title='Grafico 1.5: Agrupación de datos') +
+  xlab('Ever Married')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. No - 2. Yes")
+
+bar_worktype<- brain_oversampled %>% 
+  ggplot(aes(work_type, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  xlab('Work Type')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. Never worked  - 2. Govt_job - 3. Private - 4. Self-employed")
+
+bar_residence<- brain_oversampled %>% 
+  ggplot(aes(residence_type, fill= stroke))+
+  geom_bar(position= position_fill()) + 
+  xlab('Residence Type')+
+  scale_fill_manual(values = c("cadetblue3", "#F78D80")) +
+  labs(caption = "Nota: 1. Rural - 2. Urban")
+  
+
+grid.arrange(bar_married, bar_worktype, bar_residence)
+  
+```
+
+Observando los resultados de los diferentes gráficos y en base a ciertas características como pueden ser la forma de la **distribución**, su **amplitud** y **asimetria**, se puede llegar a varias conclusiones. Con respecto al Gráfico 1.3, la forma de la **distribución** para la variable *age* (edad) no sigue una distribución simétrica para ninguno de los dos casos (si sufre o no infarto cerebral), sin embargo, para la variable *bmi* (índice de masa corporal) es totalmente distinto, los resultados de su distribución si que siguen una estructura más simétrica aunque con una ligera desviación a la izquierda. Con respecto a la variable *avg_glucose_level*, (Niveles de glucosa media en sangre) se aprecia que su distribución se encuentra totalmente sesgada a la izquierda.
+
+En cuanto a la **amplitud de la distribución**, cada variable ocupa un rango distinto. La variable *age* (edad), tiene un rango general que va desde individuos recién nacidos (meses de vida) hasta individuos de avanzada edad, llegando a superar los 80 años, sin embargo, los datos relaciones a aquellos individuos que si sufren de infarto cerebral siguen una amplitud muy acotada, la mayoría de la muestra se encuentra entre los 40 y 80 años de edad (distribución sesgada a la derecha). Con respecto a la variable *bmi* (indice de masa corporal) la situación es algo distinta, se observa como la **amplitud** de los datos (para los casos que si sufren infarto cerebral) vuelve a estar acotado en unos niveles de 20 y 40 de indice de masa corporal, centrándose la mayoría de los datos en el centro del gráfico, concretamente, en unos valores ligeramente inferiores a 30, en otras palabras, la mayoría de pacientes que sufren de **infarto cerebral** (stroke) se encuentran en una situación de sobrepeso y obesidad. Por último, la variable *avg_glucose_level* (Niveles medios de glucosa en sangre) sigue una **amplitud en su distribución** totalmente distinta a las otras dos variables explicadas anteriormente, la mayoría de casos (individuos que sufren infarto cerebral), se centran en la parte izquierda del gráfico, dato muy curioso, porque son valores que no superan (la mayoria) los **100mg/dl**, valores que se caracterizan por ser considerados normales en una persona saludable.
+
+Siguiendo con el análisis, en los Gráfico 1.4 y 1.5, se observan **distribuciones** y **amplitudes** totalmente distintas. Hay que recordar, que en estos gráficos se está trabajando con **variables categóricas**, por tanto, la estructura visual con respecto al Gráfico 1.3 es diferente. 
+
+#### 1.3.5 Matriz de correlación.
+
+Analizar la **correlación entre las variables** es importante en un **análisis exploratorio** de los datos por varias razones:
+
+* **Ayuda a entender mejor el conjunto de datos:** El análisis de la correlación entre las variables permite ver cómo se relacionan entre sí y si hay patrones o tendencias que puedan ser útiles para entender mejor el conjunto de datos.
+
+* **Identificar variables que pueden ser redundantes:** Si hay dos o más variables altamente correlacionadas entre sí, es posible que solo una de ellas sea necesaria para incluir en el modelo. Esto puede ayudar a reducir la complejidad del modelo y mejorar su rendimiento.
+
+* **Ayuda a elegir el modelo adecuado:** Algunos modelos son más adecuados para trabajar con variables altamente correlacionadas que otros.
+
+* **Ayuda a evitar problemas de multicolinealidad:** La multicolinealidad ocurre cuando dos o más variables están altamente correlacionadas entre sí. Esto puede afectar negativamente al rendimiento del modelo y hacer que los resultados sean menos precisos. El análisis de la correlación entre las variables ayudará a detectar la multicolinealidad y a tomar medidas para abordarla.
+
+Antes de realizar la matriz de correlaciones, es importante que las variables pasen por un proceso de transformación. Hay que recordar que en nuestra base de datos cuenta con variables numéricas y variables categóricas, por lo que, para poder hacer la matriz de correlaciones, todas las variables deben de estar caracterizadas como variables numéricas. Una vez realizado este proceso, se procede a realizar la matriz. En el Gráfico 1.6 se muestran los resultados obtenidos:
+
+```{r variables numericas, echo=FALSE}
+brain_stroke_n <- brain_oversampled
+
+brain_stroke_n$gender <- as.numeric(brain_stroke_n$gender)
+brain_stroke_n$hypertension <- as.numeric(brain_stroke_n$hypertension)
+brain_stroke_n$heart_disease <- as.numeric(brain_stroke_n$heart_disease)
+brain_stroke_n$ever_married <- as.numeric(brain_stroke_n$ever_married)
+brain_stroke_n$work_type <- as.numeric(brain_stroke_n$work_type)
+brain_stroke_n$residence_type <- as.numeric(brain_stroke_n$residence_type)
+brain_stroke_n$smoking_status <- as.numeric(brain_stroke_n$smoking_status)
+brain_stroke_n$stroke <- as.numeric(brain_stroke_n$stroke)
+
+```
+
+```{r, echo=FALSE}
+matrix_corr <-cor(brain_stroke_n)
+
+#p-values matrix correlation
+p.mat <- round(cor_pmat(brain_stroke_n), 2)
+
+
+corr.plot <- ggcorrplot(
+  matrix_corr, hc.order = TRUE, type = "lower", outline.col = "white",
+  p.mat = p.mat
+  )
+```
+
+```{r, echo=FALSE, fig.align='center'}
+corr.plot + ggtitle("Gráfico 1.6: Matriz de correlación") +
+  labs(caption = "Nota: Las X representan los P-valores no significativos.")
+```
+
+
+```{r matrix corr/p-value, echo=FALSE, fig.align='center', warning=FALSE, include=FALSE}
+ggplotly(corr.plot)  #Añadir tabla
+```
+
+Como puede apreciarse de manera general en el gráfico Gráfico 1.6, la matriz de correlación **no presenta correlaciones altas** (>0.80), además, poniendo el foco a su vez en la matriz de correlaciones de los p-valores, se observa que la variable *residence_type* no aporta ninguna información. 
+
+Entrando en detalle y con relación a lo realmente importante del estudio, la variable que guarda mayor correlación con la variable *stroke*, es la variable *age*, un resultado bastante lógico teniendo en cuenta que, a mayor edad, mayor probabilidad existe de que una persona sufra un **derrame cerebral** si no ha seguido unos hábitos saludables de vida. Otro de los valores importantes a tener en cuenta para el análisis es la alta correlación que presentan *age* y *ever_married*, que podrían contener información redundante en muchos casos.
+
+#### 1.3.6 Normalización de variables
+
+Cuando se estima un modelo de clasificación, es interesante que las variables que sigan una distribución normal por varias razones:
+
+* **Muchos modelos se basan en el supuesto de que las variables siguen una distribución normal:** Varios de los modelos de aprendizaje automático asumen o se basan, en que las variables seguirán una distribución normal, ya que, en caso contrario el rendimiento de este podría verse afectado. 
+
+* **Ayuda a evitar problemas de sesgo:** Si las variables no siguen una distribución normal, es posible que algunas de estas tengan más influencia en el modelo que el resto de variables, debido principalmente, a la forma en la que se encuentran distribuidas. Por ejemplo, si una variable tiene una distribución muy sesgada hacia la derecha, es posible que tenga más influencia en el modelo que otras variables. Al utilizar variables que sigue una distribución normal, se evita este problema.
+
+* **Facilita la interpretación de los resultados:** Si las variables siguen una distribución normal, es más fácil realizar una mejor interpretación de los resultados del modelo, ya que permitiría realizar una serie de técnicas estadísticas convencionales, que ayudarían en gran medida a desarrollar una mejor evaluación de la significación de los coeficientes de dicho modelo.
+
+Sin embargo, un aspecto a tener en cuenta es que, aunque la normalidad es importante, **no siempre es posible y necesario** (normalmente por la gran cantidad de datos) utilizar variables que sigan una distribución normal para que el modelo sea efectivo, es más, existen muchos modelos que pueden funcionar de manera muy eficiente con variables que no siguen este tipo de distribución. 
+
+Por tanto, teniendo en cuenta todo lo anterior, el estudio de la **normalidad** en este análisis se centrará únicamente en tres variables, que son precisamente las únicas **variables numéricas** que presenta la base de datos, que son; *age* (Edad), *bmi* (Índice de masa corporal) y *avg_glucose_level* (Nivel medio de glucosa en sangre). Este estudio se divide claramente en dos partes; una primer parte en la que, mediante la aplicación de una serie de pruebas gráficas y contrastes, se analizará si dichas variables siguen o no, una **distribución normal** y, una segunda parte en la que, en caso de obtener unos resultados que devuelvan que algunas de las tres variables no sigue una distribución normal, proceder a forzar la normalidad aplicando a dichas variables un proceso de transformación y, comprobando de nuevo, tanto gráficamente como con contrastes de hipótesis, si se ha conseguido el objetivo de transformación o no.
+
+Para esta primera parte, se van a introducir (para cada variable) dos pruebas gráficas de normalidad, concretamente, histogramas y gráficos quantil-quantil. Los histogramas son gráficos que representan la frecuencia de cada valor en un conjunto de datos, en caso de que las variables sigan una **distribución normal**, el histograma debería de presentar una forma de campana, con la mayoría de los valores concentrados en el centro del gráfico y, poco a poco disminuyendo hacia los extremos de este, en caso de no presentar dicha forma, podría ser una señal de que los datos no se distribuyen de una manera normal. Con respecto a los gráficos Q-Q, se puede decir que su principal función es la de comparar los quantiles de la distribución de las variables seleccionadas con los quantiles de una **distribución normal**. Si los quantiles de la distribución de las variables forman una linea rectal en diagonal, entonces, podría decirse que los datos siguen una **distribución normal**, en caso de no ser así, puede ser un indicio de todo lo contrario. En los gráfico Gráfico 1.7 que se muestran a continuación, puede observarse todo lo anterior mencionado.
+
+
+```{r representacion grafica vble age, echo=FALSE, warning=FALSE}
+age_st1 <- brain_oversampled %>% ggplot(aes(age)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Gráfico 1.7 : Histograma y gráfico Q-Q. Variable age.") 
+age_st2 <- ggplot(brain_oversampled, aes(sample = age)) + 
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(age_st1, age_st2) 
+```
+```{r representacion grafica vble bmi, echo=FALSE}
+bmi_st1 <- brain_oversampled %>% ggplot(aes(bmi)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Grafico 1.8 : Histograma y gráfico Q-Q. Variable bmi.") 
+bmi_st2 <- ggplot(brain_oversampled, aes(sample = bmi)) +
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(bmi_st1, bmi_st2)
+```
+```{r representacion grafica vble avg, echo=FALSE}
+avg_st1 <- brain_oversampled%>% ggplot(aes(avg_glucose_level)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Grafico 1.9 : Histograma y gráfico Q-Q. Variable avg_glucose_level.") 
+avg_st2 <- ggplot(brain_oversampled, aes(sample = avg_glucose_level)) + 
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(avg_st1, avg_st2)
+```
+
+Los resultados que muestran los gráficos (1.7, 1.8 y 1.9), se podría llegar a la conclusión de que las variables se encuentran muy lejos de poder acercarse a seguir una **distribución normal**, exceptuando el caso de la variable *bmi* que en un principio, si parece que se ajusta mejor a una **distribución normal** con respecto al resto de variables. En cualquier caso, el estudio de la normalidad no termina aquí, es importante profundizar más en este. Para ello, es imprescindible aplicar contrastes de hipótesis para examinar más en detalle si existe o no, normalidad en alguna de las variables.
+
+#### 1.3.7 Contraste de Hipotesis:
+
+Como se ha podido observar en el análisis gráfico de la normalidad, ambos métodos son muy interesantes ya que, además de ser visuales, resultan muy fáciles de entender y permiten realizar una evaluación rápida de si una variable, sigue o no, una **distribución normal**. Pero no son suficientes, para poder corroborar al 100% que una variable sigue una distribución normal o no, es necesario ir más allá, es decir, siempre es importante comprobar mediante contrastes de hipótesis que lo que se aprecia visualmente está representando la realidad y no está induciendo a engaño o malas interpretaciones. Para evitar esto, se ha decidido aplicar el método de contraste de hipótesis de de **Anderson-Darling** en lugar del famoso contraste de **Shapiro-Wilk**, principalmente, debido a que el *data.frame* tiene más de 5000 observaciones y por tanto, el contraste de **Shapiro-Wilk** se encuentra límitado con tal número de observaciones para poder hacer la prueba de normalidad de manera eficiente.
+
+```{r prueba de Anderson-Darling, echo=FALSE}
+ad.test(brain_oversampled$bmi)
+ad.test(brain_oversampled$age)
+ad.test(brain_oversampled$avg)
+```
+
+Como se puede apreciar, los resultados que aporta el contrastes de hipótesis de **Anderson-Darling** son francamente negativos en términos de normalidad. Ninguna de la variables numéricas del *data.frame* sigue una **normal** estrictamente hablando. Como bien se ha mencionado y según la teoría estadística, que las variables del estudio no sigan una **distribución normal** es, por diversas razones, algo que podría causar ciertos problemas, sobretodo en el rendimiento en los modelos de clasificación, por lo que, ante esta situación, es imprescindible pasar a la segunda parte de este análisis de normalidad, que se corresponde básicamente con el intento de transformación de las variables para que sigan una **distribución normal**.
+
+
+#### 1.3.8 Transformaciones. 
+
+Para la transformación de las variables se ha seleccionado el método **Box-Cox**. Este método se basa en la idea de que muchas variables no se distribuyen de manera normal porque tienen una escala que no es adecuada para los datos. Por ejemplo, una variable que toma valores entre 0 y 1 no se distribuirá de manera normal porque la escala es muy pequeña. En términos teóricos, **Box-Cox** trabaja basándose en un parámetro llamado lambda, el cual, se utiliza para transformar la variable. Si dicho parámetro lambda es igual a 0, la transformación es una raíz cuadrada, si lambda es igual a 1, la transformación es un logaritmo, si lambda es diferente de 0 o 1, la transformación es una combinación de estos dos casos. El valor de lambda que se utiliza depende siempre de la forma de la distribución de los datos de las variables.
+
+Una vez que se ha aplicado la transformación de **Box-Cox**, se evaluará de nuevo, si las variables se distribuye de manera **normal** utilizando las mismas técnicas utilizadas anteriormente, como han sido los histogramas y gráficos quantil-quantil. Si los datos siguen una distribución normal después de la transformación, se puede proceder a estimar el modelo de clasificación. Es importante tener en cuenta que el método de **Box-Cox** no siempre produce una **distribución normal**, en algunos casos, es posible que los datos sigan una distribución que no es normal incluso después de la transformación. En estas situaciones, es posible que sea necesario utilizar otras técnicas para transformar los datos, utilizar modelos de clasificación que no requieran que los datos se distribuyan de manera normal o, asumir **normalidad en las variables** (siempre que sea lógica asumirla) para poder aplicar **modelos de clasificación** que requieren de esta característica para ser efectivos.
+
+```{r calculo del lambda asociado, echo=FALSE}
+bcage <- powerTransform(brain_oversampled$age)
+bcbmi <- powerTransform(brain_oversampled$bmi)
+bcavg <- powerTransform(brain_oversampled$avg_glucose_level)
+summary(bcage)
+summary(bcbmi)
+summary(bcavg)
+```
+
+Realizadas las **transformaciones**, el siguiente paso es el de comprobar (de nuevo) mediante histogramas, gráficos Q-Q y contrastes de hipótesis, si realmente este método de transformación ha sido efectivo o de lo contrario, se tendrá que asumir normalidad en las variables para poder realizar ciertos modelos de clasificación.
+
+```{r transformacion de las variables, echo=FALSE}
+age_n <- bcPower(brain_oversampled$age, lambda = 0.9643)
+bmi_n <- bcPower(brain_oversampled$bmi, lambda = 0.464)
+avg_n<- bcPower(brain_oversampled$bmi, lambda = -1)
+```
+
+```{r crecacion de data.frame con las vbles transformadas, echo=FALSE}
+brain_ovn<-  brain_oversampled %>% 
+  cbind(bmi_n, age_n, avg_n)
+```
+
+```{r representacion grafica vble age trans, echo=FALSE}
+age_t1 <- brain_ovn %>% ggplot(aes(age_n)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Grafico 1.10 : Histograma y gráfico Q-Q. Variable age transformada.") 
+age_t2 <- ggplot(brain_ovn, aes(sample = age_n)) + 
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(age_t1, age_t2)
+```
+```{r representacion grafica vble bmi trans, echo=FALSE}
+bmi_t1 <- brain_ovn %>% ggplot(aes(bmi_n)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Grafico 1.11 : Histograma y gráfico Q-Q. Variable bmi transformada.")
+bmi_t2 <- ggplot(brain_ovn, aes(sample = bmi_n)) + 
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(bmi_t1, bmi_t2)
+```
+```{r representacion grafica vble avg trans, echo=FALSE}
+avg_t1 <- brain_ovn%>% ggplot(aes(avg_n)) + 
+  geom_histogram(aes(y=..density..), bins = 12, fill = "cadetblue2", col = "white") + ggtitle("Grafico 1.12 : Histograma y gráfico Q-Q. Variable avg_glucose_level transformada.")
+avg_t2 <- ggplot(brain_ovn, aes(sample = avg_n)) + 
+  stat_qq() + 
+  stat_qq_line()
+grid.arrange(avg_t1, avg_t2)
+```
+
+#### 1.3.9 Nuevo contraste de hipótesis.
+
+```{r, echo=FALSE}
+ad.test(brain_ovn$bmi_n)
+ad.test(brain_ovn$age_n)
+ad.test(brain_ovn$avg_n)
+```
+
+Como se puede apreciar en los resultados que aportan los gráficos 1.10, 1.11 y 1.12 y, los constrastes estadísticos, el método **Box-Cox** no ha sido capaz de convertir en normal ninguna de la variables, debido seguramente, a la alta presencia de **outliers** sumado a la gran cantidad de datos. Con todo esto, hay que tener en cuenta algo importante y es que, se tratan de datos pertenecientes a individuos que siempre van a tomar valores dentro de unos límites por lo que, se puede asumir cierta normalidad en ellos. Por tanto, finalmente se seguirá con el estudio asumiendo que las variables siguen **cierta normalidad**, aunque vaya en contra de la teoría estadística y pese a que se ha realizado un intento de transformación, se seguirá el estudio con las variables que no han sido transformadas, se hará así debido a varios motivos:
+
+1. **Perdida de interpretabilidad:** La distribución de los datos ha cambiado, así como su escala y para generar respuestas tras hacer el modelo predictivo es más costoso de interpretar.
+
+2. **Se puede asumir cierta normalidad:** Como se ha comentado anteriormente los datos siempre van a darse entre ciertos límites y además, hay una gran cantidad de ellos, por lo que es más difícil que puedan seguir una normal pese a que lo parezca a simple vista, como puede ser el caso de *bmi*.
+
+3. **Muchos de los modelos usados son robustos:** Los modelos seleccionados para el análisis presentan, en su mayoría, cierta robustez a la ausencia de normalidad y algunos de ellos en sus procesos incluyen procedimientos de tipificación para eliminar problemas de escala. De hecho, los dos modelos que mejor clasifican `stroke` son modelos bastante robustos.
+
+4. **Pérdida de precisión:** Aunque teóricamente no debería ser así, tras hacer pruebas con estas variables transformadas se pierde tanto precisión como especificidad (*véase en el anexo*) por lo que pierde aún más sentido continuar con ellas.
+
+#### 1.3.10 Normalidad multivariante.
+
+En el caso de la clasificación predictiva, es posible que **no sea necesario** verificar la normalidad multivariante de los datos antes de entrenar un modelo. Esto se debe a que muchos algoritmos de clasificación, como los árboles de decisión y los máquinas de vectores de soporte (SVM), no asumen que los datos siguen una distribución normal y, por lo tanto, pueden funcionar bien incluso si los datos no son normales. Sin embargo, verificar la **normalidad multivariante** de los datos **puede ser útil** en ciertas circunstancias, como por ejemplo, si está utilizando un algoritmo de clasificación que asume que los datos son normales o si desea evaluar si los datos cumplen con ciertas condiciones necesarias para utilizar ciertos métodos de análisis. En general, es importante recordar que la **normalidad multivariante** es solo una condición y no necesariamente un **requisito** para el **análisis** o el **aprendizaje automático**.
+
+```{r crecacion de grupo variables numericas, echo=FALSE}
+brain_multiv<- brain_oversampled %>% 
+  dplyr::select(age, bmi, avg_glucose_level, stroke)
+```
+
+
+```{r normalidad multivariante, echo=FALSE}
+par(mfrow = c(1, 2))
+# Distancia de Mahalanobis
+outliers <- mvn(data = brain_multiv[,1:3], multivariateOutlierMethod = "quan")
+# Distancia ajustada de Mahalanobis
+outliers.adj <- mvn(data = brain_multiv[,1:3], multivariateOutlierMethod = "adj") 
+
+```
+
+Se pueden apreciar un 17,64% de valores atípicos o outliers en la muestra. Sabiendo que el 20% de nuestra muestra son casos de ictus se podría incluso pensar que son casos positivos, pero se comprobará después observando la repartición de los datos.
+
+#### 1.3.11 Contrastes de hipótesis.
+
+```{r prueba de mardia para normalidad multiv, echo=FALSE}
+mardia <- mvn(data = brain_multiv[,1:3], mvnTest = "mardia")
+datatable(mardia$multivariateNormality, caption = "Tabla 1.3: Prueba de Mardia")
+```
+
+
+```{r prueba de henze-zirkler para normalidad multiv, echo=FALSE}
+hz <- mvn(data = brain_multiv[,1:3], mvnTest = "hz")
+datatable(hz$multivariateNormality, caption = "Tabla 1.4: Prueba de Henze-Zirkler")
+```
+
+#### 1.3.12 Análisis de varianza constante.
+
+
+```{r cálculo de la matriz de covarianzas, echo=FALSE}
+boxM(brain_multiv[,1:3], grouping = brain_multiv$stroke)
+```
+
+Después de analizar también los estadísticos no se puede asumir normalidad multivariante, seguramente, debido a la falta de normalidad individual. Pero como se ha comentado antes no supondrá un gran problema para el modelo de clasificación. Lo que si determinará son las elecciones de unos u otros modelos de clasificación, como por ejemplo un modelo discriminante cuadrático frente al lineal debido a la robustez del primero antes la falta de varianza constante (*véase anexo*).
+
+
+# 2. MODELOS DE CLASIFICACIÓN.
+
+En una primera etapa, se han estimado estimado diferentes modelos de clasificación, especificando todas las variables explicativas propuestas. Todas las variables, han sido previamente utilizadas en diferentes procesos de limpieza, preparación y análisis exploratorio. Finalmente, tal y como se ha introducido con anterioridad, se ha decidido utilizar las variables no transformadas e ir en contra de la teoría estadística.
+
+## 2.1 Estimaciones y selección del mejor modelo de clasificación.
+
+A partir de los resultados, sobre todo tendrá un mayor peso lo referente a la especificidad (Specifity) ya que la clase negativa es más frecuente que la clase positiva, aunque también se tendrán en cuenta indicadores como la precisión (Accuracy) y medidores de la bondad del modelo, como el indicador Kappa y la curva ROC. Como el objetivo del estudio es elaborar modelos de clasificación para detectar cuantas personas sufren un infarto cerebral y el Accuracy indica el acierto general sabiendo que la mayoría de casos son negativos, no seria un indicador tan representativo ya que el valor real del modelo reside en predecir correctamente si un nuevo individuo puede sufrir un infarto cerebral, por ello, la especificidad sería una medida más importante para evaluar el rendimiento del modelo. Por último, para medir la bondad del modelo, el índice Kappa junto con la CURVA ROC aplicado a la tabla de confusión permite evaluar si la clasificación observada es similar (concordante) con la clasificación predecida por el clasificador. 
+
+Con respecto a los indicadores de bondad, cabe destacar, que el coeficiente Kappa es una medida tiene en cuenta el desequilibrio de clases y mide el grado de acuerdo entre el modelo y una observación humana independiente. Con respecto a la curva ROC, es un indicador construido a partir de los valores del umbral de decisión del modelo, que es el valor a partir del cual se decide si un ejemplo pertenece a la clase positiva o a la clase negativa. Se elabora graficando el True Positive Rate (TPR) en el eje Y y el False Positive Rate (FPR) en el eje X para diferentes valores del umbral de decisión. El TPR es la proporción de ejemplos positivos que han sido correctamente clasificados por el modelo (es decir, la tasa de verdaderos positivos). El FPR es la proporción de ejemplos negativos que han sido incorrectamente clasificados como positivos (es decir, la tasa de falsos positivos).
+
+
+Una vez que se han desarrollado todos los indicadores a tener en cuenta, en la tabla *****, se presentan los resultados de los distintos modelos estimados.
+
+```{r, echo = FALSE}
+Indicadores <- c( "Accuracy", "Specificity", "Curva ROC", "Kappa")
+Modelo1 <- c( "0,9121", "0,6648", "0,9443", "0,6962")
+Modelo2<- c( "0,9076", "0,6877", "0,9434", "0,6894")
+Modelo3 <- c( "0,8399", "0,4384", "0,8505", "0,4265")
+Modelo4 <- c( "0,8226", "0,5415", "0,9353", "0,4763")
+Modelo5 <- c( "0,7589", "0,4143", "0,7979", "0,3192")
+```
+
+
+```{r, echo=FALSE}
+# Crear una tabla a partir de los vectores
+variables_table_Modelo <- data.frame(Indicadores, Modelo1, Modelo2, Modelo3, Modelo4, Modelo5)
+
+# Crear una tabla en formato HTML a partir de la tabla
+html_table_modelo <- htmlTable(variables_table_Modelo, rnames = FALSE)
+htmlTable(html_table_modelo,
+          caption = "Tabla 2.1: Modelos de clasificación estimados", tfoot= "Modelo 1: XGBoost.
+          Modelo 2: RandomForest.
+          Modelo 3: Regresión logística.
+          Modelo 4: Modelo de análisis discriminante cuadrático (QDA).
+          Modelo 5: Naive Bayes.")
+```
+
+De los resultados del proceso de estimación mostrados en la tabla **** se deduce que el mejor rendimiento, según el valor de la especificidad (Specificity) y el accuracy es la correspondiente a los dos primeros modelos, por tanto serán los elegidos como modelos de clasificación del estudio. (Modelo 1 y Modelo 2). En estos modelos, la bondad del ajuste, medida mediante el indicador Kappa y la curva ROC son con diferencia los valores más altos, rozando el 0,70 para el indicador Kappa y el 0,95 para el valor de la Curva Roc. El resto de modelos (Modelo 3, Modelo 4 y Modelo 5), en cambio, en todos los indicadores se observan valores muy por debajo de los dos primeros, salvo en el Modelo 3, que a excepción del indicador accuracy, todos los demás presentan valores más altos que su modelo predecesor (Modelo 2).
+
+En cuanto al análisis estructural de los indicadores, cabe destacar principalmente los dos indicadores que han sido determinantes a la hora de seleccionar los dos modelos para realizar el estudio, el indicador accuracy que muestra el rendimiento en términos generales del modelo de clasificación, es decir, el valor del indicador nos aporta información en términos generales de como de preciso es el modelo a la hora de predecir si los individuos sufren o no un infarto cerebral. En cambio, la especificidad (Specificity) de los que les esta dando el infarto, los que realmente acertamos
+
+
+
+## 2.2 Modelo 1. XGboost
+
+El **XGboost** es uno de los algoritmos de machine learning (ML) que más se está utilizando gracias a que devuelve un grado de precisión bastante alto con poco esfuerzo que en muchos casos iguala o mejora modelos más complejos, sobre todo con datos heterogéneos.
+***XGboost** significa Extreme Gradient Boosting y está basado en el principio de boosting. Este consiste en generar múltiples modelos predictivos "débiles" de forma secuencial, de forma que cada modelo generado este alimentado de los resultados del anterior para crear un modelo robusto, el cual tiene mayor precisión en los resultados. En el proceso de entrenamiento cada modelo débil se intenta ajustar de forma iterativa hasta encontrar el mínimo de la función objetivo, si el modelo no es mejor que el anterior se vuelve al que tenía mejores resultados y se ajustan los pesos para continuar con el proceso. El XGboost utiliza como modelos débiles arboles de decisión de diferente naturaleza en función de los objetivos marcados de regresión o de clasificación.
+
+Se dividirá el conjunto de datos en dos subconjuntos (train/test) con la finalidad de entrenar el modelo y posteriormente evaluarlo.
+
+```{r as.numeric_xg, echo=FALSE}
+brain_oversampled$stroke <- as.numeric(brain_oversampled$stroke)
+```
+
+```{r xg_numeric, echo=FALSE, include=FALSE}
+brain_oversampled$gender <- brain_oversampled$gender-1
+brain_oversampled$age <- brain_oversampled$age
+brain_oversampled$hypertension <- brain_oversampled$hypertension-1
+brain_oversampled$heart_disease <- brain_oversampled$heart_disease-1
+brain_oversampled$ever_married <- brain_oversampled$ever_married-1
+brain_oversampled$work_type <- brain_oversampled$work_type-1
+brain_oversampled$residence_type <- brain_oversampled$residence_type-1
+brain_oversampled$smoking_status <- brain_oversampled$smoking_status-1
+brain_oversampled$avg_glucose_level <- brain_oversampled$avg_glucose_level
+brain_oversampled$bmi <- brain_oversampled$bmi
+brain_oversampled$stroke <- brain_oversampled$stroke-1
+brain_oversampled
+```
+
+```{r, echo=FALSE}
+xg_brain <- list()
+
+xg_brain$original <- brain_oversampled
+
+```
+
+```{r test/train xg, echo=FALSE, warning=FALSE, include=FALSE}
+set.seed(141293)
+
+xg_brain$train <- sample_frac(brain_oversampled, size = 0.7) #division del df, parte de train la división será 70/30
+xg_brain$test <- setdiff(xg_brain$original, xg_brain$train) #esta función lo que indica es que del df1 coja los que son diferetes a con el df2
+
+```
+
+*Conversión en matriz*
+
+Para realizar modelos XGboost se requiere que los datos sean matrices, concretamente del tipo DMatrix (matriz de datos). Para ello vamos a convertir en matriz los datos exceptuando la variable objetivo, posteriormente aplicaremos una función concreta para el modelo de XGboost 
+
+```{r Matriz del conjunto de entrenamiento 1, echo=FALSE, warning=FALSE, include=FALSE}
+xg_brain$train_matrix <- 
+  xg_brain$train |> 
+  dplyr::select(-stroke) |> 
+  as.matrix()
+
+xg_brain$train_matrix <- xgb.DMatrix(data = xg_brain$train_matrix, label = xg_brain$train$stroke)
+xg_brain$train_matrix
+```
+
+
+```{r Matriz del conjunto de test 1, echo=FALSE, warning=FALSE, include=FALSE}
+xg_brain$test_matrix <- 
+  xg_brain$test |> 
+  dplyr::select(-stroke) |> 
+  as.matrix()
+
+xg_brain$test_matrix <- xgb.DMatrix(data = xg_brain$test_matrix, label = xg_brain$test$stroke)
+xg_brain$test_matrix
+
+```
+
+### 2.2.1 Metodo 1: Todas las variables
+
+En primer lugar se van a escoger todas las variables para ver cómo es capaz de predecir el modelo sin ningún tipo de restricción.
+
+#### 2.2.1.1 Entrenamiento.
+
+Se ha escogido para el modelo de aprendizaje la regresión logística binaria para el resultado de salida, devolverá la probabilidad de Stroke entre 0 y 1 de que tenga derrame cerebral.
+Se ha fijado como 250 interacciones el máximo para entrenar el modelo, se pretende que se ejecute de forma sencilla y no haya *overfitting*. Se ha fijado el número de bifurcaciones a las que están hace por defecto (6), y la tasa de aprendizaje en 0.6 ya que queremos que se llegue un valor más ajustado en el resultado de la función objetivo rápido. Los núcleos usados se ha fijado en 4 para los procesos de cálculo.
+
+```{r Argumentos:, include=FALSE}
+# - **binary:logistic**: argumento para clasificación binaria.
+# - **nround**: nº de interacciones a realizar
+# - **max.depth**: Profundidad o número de nodos de bifurcación de los árboles de decisión usados en el entrenamiento ( a mayor profundidad mejores resultados, aunque puede que se sobreajuste el modelo)
+# - **eta**: tasa de aprendizaje del modelo. Un valor más alto hace que se llegue más rápido al mínimo de la función objetivo. Un valor alto puede que se pase el valor óptimo y un valor pequeño puede hacer que nunca llegue al valor óptimo.
+ #- **nthread**: número de hilos computacionales usados durante el entrenamiento.  Generalmente se refiere a los núcleos del procesador de tu equipo de cómputo, local o remoto, pero también pueden ser los núcleos de un GPU.
+```
+
+```{r, echo=FALSE, include=FALSE}
+set.seed(141293)
+xg_brain$modelo_01 <- xgboost(data = xg_brain$train_matrix,
+                              objective ="binary:logistic",
+                              nrounds =250, max.depth= 6, eta= 0.6,
+                              nthread = 4)
+```
+
+
+```{r, echo=FALSE}
+xg_brain$modelo_01$evaluation_log |> 
+  ggplot(aes(x=iter, y=train_logloss)) +
+  geom_line() +
+  ggtitle(" Gráfico 2.1: Curva de aprendizaje")
+```
+
+Para evaluar el modelo se hará mediante el índice **LogLoss**, este mide como de lejos está cada predicción con respecto de la etiqueta real. Los clasificadores más idóneos tienen valores progresivamente más pequeños, por tanto, un menor LogLoss tendrá una mayor precisión.
+
+En el primer modelo se observa que sigue habiendo una mejora, aunque mucho menor que al principio, en las 100 interacciones que ha realizado. Cuando se evalúe el modelo con el conjunto de entrenamiento se observará como de bueno es. Además, se puede considerar que se está ajustando correctamente ya que no hay anomalías en la curva que hace LogLoss.
+
+##### Importancia de las variables:
+
+
+```{r, echo=FALSE}
+xg_brain$modelo_01_importances <- xgb.importance(model = xg_brain$modelo_01)
+datatable(xg_brain$modelo_01_importances, caption = "Tabla 2.2: Importancia de las variables")
+```
+
+#### 2.2.1.2 Predicciones.
+
+Se muestran los 5 primeros individuos de la base de datos *test* con el score asignado, posteriormente, se va a realizar una evaluación general del modelo con todos los datos obtenidos. Este procedimiento se aplicará en todos los modelos realizados. 
+
+```{r, echo=FALSE}
+xg_brain$predict_01 <- predict(xg_brain$modelo_01, xg_brain$test_matrix)
+xg_brain$predict_01 |> head(5)
+```
+
+#### 2.2.1.3 Evaluación del modelo
+
+```{r, echo=FALSE, warning=FALSE}
+set.seed(141293)
+cbind(xg_brain$predict_01 > 0.70, xg_brain$test$stroke) %>% 
+  data.frame() %>% 
+  table() %>% 
+  confusionMatrix()
+```
+
+Se va a situar el score en un 70%, la razón es que sí el procedimiento en una situación así consistiera en la monitorización y suministrar fármacos que no tuvieran efectos secundarios a largo plazo, es más importante acertar en los pacientes que realmente le está dando el infarto. En otro tipo de enfermades se tendría que ajustar los criterios, por ejemplo, en un cáncer, otro ejemplo sería la detección de embarazos. En estos supuestos habría que analizarlos y fijar el score.
+
+El modelo ha obtenido un 91,21% de precisión cuando se ha evaluado con el conjunto de test, esto quiere decir que de los 1754 pacientes que había, 1387 ha tenido un diagnóstico correcto. Puede parecer buen modelo viendo la precisión, pero si observamos los pacientes que les dio derrame cerebral conseguimos identificar el 66,48% de los casos. Los pacientes que se podría suponer que se han quedado hospitalizados sin necesidad suponen el 2,73%. 
+
+En cuanto al Kappa como medida de bondad se puede ver un valor de casi 70% que indica un modelo bueno sin llegar a ser excelente.
+
+##### Curva ROC
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+roc_xg1<- roc(xg_brain$test$stroke, xg_brain$predict_01)
+```
+
+```{r, echo=FALSE}
+plot(roc_xg1, main = "Gráfico 2.2: Curva ROC", col="red")
+legend("bottomright",legend=paste(" AUC =",round(as.numeric(roc_xg1$auc),4)))
+```
+
+
+El valor de la curva ROC supera el 94%, lo cual arroja una muy buena bondad. Sabiendo que una curva ROC óptima tiende a seguir la diagonal de la línea de unidad (es decir, una línea que pasa a través del punto (0,0) y (1,1) en el gráfico), lo que indica una alta TPR y una baja FPR. Esto significa que el modelo tiene una alta capacidad para identificar correctamente los casos positivos y minimizar los casos falsos positivos.
+
+### 2.2.2 Método 2: Modelo refinado.
+
+```{r copia_xg, echo=FALSE}
+xg_brain <- list()
+
+xg_brain$importamce <- brain_oversampled |> dplyr::select(age, avg_glucose_level, bmi, stroke)
+```
+
+Se cogerán las variables cuya importancia en el primer modelo cuentan con un mayor peso (age, avg_glucose_level, bmi), y se separara el conjunto de datos en 70/30 para realizar este nuevo modelo. Se emplea la misma semilla para que puedan ser comparables.
+
+#### 2.2.2.1 Entrenamiento.
+
+Se procede a entrenar los datos para las variables seleccionadas.
+
+```{r, echo=FALSE}
+set.seed(141293)
+
+xg_brain$train_importance <- sample_frac(xg_brain$importamce, size = 0.7) #division del df, parte de train la división será 70/30
+xg_brain$test_importance <- setdiff(xg_brain$importamce, xg_brain$train_importance) #esta función lo que indica es que del df1 coja los que son diferetes a con el df2
+
+```
+
+##### Importancia de las variables.
+
+```{r Matriz de entrenamiento, echo=FALSE}
+xg_brain$train_importance_matrix <- 
+  xg_brain$train_importance |> 
+  dplyr::select(-stroke) |> 
+  as.matrix()
+
+xg_brain$train_importance_matrix <- xgb.DMatrix(data = xg_brain$train_importance_matrix, label = xg_brain$train_importance$stroke)
+xg_brain$train_importance_matrix
+```
+
+
+```{r Matriz de test, echo=FALSE}
+xg_brain$test_importance_matrix <- 
+  xg_brain$test_importance |> 
+  dplyr::select(-stroke) |> 
+  as.matrix()
+
+xg_brain$test_importance_matrix <- xgb.DMatrix(data = xg_brain$test_importance_matrix, label = xg_brain$test_importance$stroke)
+xg_brain$test_importance_matrix
+
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+set.seed(141293)
+xg_brain$modelo_04 <- xgboost(data = xg_brain$train_importance_matrix,
+                              objective ="binary:logistic",
+                              nrounds =250, max.depth= 6, eta= 0.6,
+                              nthread = 4)
+```
+
+```{r, echo=FALSE}
+xg_brain$modelo_04$evaluation_log |> 
+  ggplot(aes(x=iter, y=train_logloss)) +
+  geom_line() + ggtitle("Gráfico 2.3: Curva de aprendizaje")
+
+```
+
+```{r, echo=FALSE}
+xg_brain$modelo_04_importances <- xgb.importance(model = xg_brain$modelo_04)
+datatable(xg_brain$modelo_04_importances, caption = "Tabla 2.3: Importancia de las variables." )
+```
+
+#### 2.2.2.2 Predicción.
+
+```{r, echo=FALSE}
+xg_brain$predict_04 <- predict(xg_brain$modelo_04, xg_brain$test_importance_matrix)
+xg_brain$predict_04 |> head(5)
+```
+
+#### 2.2.2.3 Evaluación del modelo
+
+```{r, echo=FALSE}
+set.seed(141293)
+cbind(xg_brain$predict_04 > 0.70, xg_brain$test_importance$stroke) %>% 
+  data.frame() %>% 
+  table() %>% 
+  confusionMatrix()
+```
+
+En este caso se puede apreciar que, pese a que la precisión sigue iual (0,9121) la sensitividad y especificidad han variado, habiendo decrecido la segunda. El kappa también ha disminuido un poco (menos de un punto), pero en general el modelo es casi idéntico, por lo que se podría decir que es una buena simplificación del modelo.
+
+###### Curva ROC.
+
+```{r, echo=FALSE, include=FALSE, warning=FALSE}
+roc_xg4<- roc(xg_brain$test_importance$stroke, xg_brain$predict_04)
+```
+```{r, echo= FALSE}
+plot(roc_xg4, main = "Gráfico 2.4: Curva ROC", col="red")
+legend("bottomright",legend=paste(" AUC =",round(as.numeric(roc_xg4$auc),4)))
+```
+
+La bondad calculada por la curva ROC también es algo menor, aunque también es casi idéntico. 
+Pese a que se podría decir que es un buena simplificación del modelo con todas las variables, este estudio concreto trata de salvar vidas a individuos gracias a diagnosticar bien un caso de infarto cerebral y casi todas las variables son fácilmente recolectables en un entorno sanitario (como el IMC, la existencia de hipertensión, enfermedad cardíaca o el género) son datos que residen en la historia clínica del paciente. Por tanto, el modelo que se considera válido será el primero planteado que de 100 pacientes con ictus diagnostica correctamente 66.
+
+## 2.3 Modelo 2. Random Forest.
+
+**Random Forest** es un método de aprendizaje automático utilizado en tareas de clasificación y regresión. Se basa en la idea de crear un conjunto de *árboles de decisión*, cada uno de los cuales es entrenado con un subconjunto aleatorio de las características y ejemplos de entrenamiento. Los árboles de decisión son modelos de clasificación que toman un conjunto de características como entrada y devuelven una predicción de clase para cada ejemplo.
+
+Este método combina las predicciones de todos los árboles de decisión para hacer predicciones más precisas. La idea es que, al combinar muchos modelos diferentes entrenados con diferentes subconjuntos de datos, el resultado final será **más preciso y robusto** que si solo se utilizara un árbol de decisión.
+
+Random Forest es un método muy popular en el aprendizaje automático debido a su capacidad para manejar un gran número de características y para generalizar bien a nuevos datos.
+
+### 2.3.1 Método 1: Todas las variables.
+
+Primero, se va a optar a ver cómo clasifica el modelo usando todas las variables del estudio.
+
+#### 2.3.1.1 Entrenamiento.
+
+```{r división en test/train, echo=FALSE, include=FALSE, warning=FALSE}
+
+set.seed(141293)
+train_r <- sample_frac(brain_oversampled_r, size = 0.7)
+test_r <- setdiff(brain_oversampled_r, train_r)
+```
+
+Para el random forest,en vez de usar los hiperparámetros predeterminados, se realiza un bucle para elegir los hiperparámetros que minimizan el error. El bucle esta acotado entre los hiperparámetros óptimos. En el anexo está el bucle con el rango completo.
+
+Los hiperparámetros que vamos a modificar son mtry, que indica el numero de variables cogidas aleatoriamente en cada división y nodesize, que recoge cuantas observaciones vamos a tener en los nodos terminales.
+
+```{r creación de secuencia de valores, echo=FALSE}
+set.seed(141293)
+mtry <- seq(2, 5, 1)
+nodesize <- seq(2, 4, 1)
+```
+
+```{r, echo=FALSE}
+hyper_grid <- expand.grid(mtry = mtry, nodesize = nodesize) 
+oob_err <- c()
+```
+
+Hiperparámetros que minimizan el error:
+
+```{r bucle para encontrar los hiperparámetros que minimizan el error, echo=FALSE}
+set.seed(141293)
+for (i in 1:nrow(hyper_grid)) {
+    random_forest2 <- randomForest(stroke ~ .,
+                        train_r,
+                        mtry = hyper_grid$mtry[i],
+                        nodesize = hyper_grid$nodesize[i])
+                        
+                        
+    oob_err[i] <- random_forest2$err.rate[nrow(random_forest2$err.rate), "OOB"]
+}
+```
+
+
+```{r valores de hiperparámetros, echo=FALSE}
+best <- which.min(oob_err)
+hyper_grid$mtry[best] 
+hyper_grid$nodesize[best]
+```
+
+Incluimos los parámetros y la importancia de las variables en el modelo, ya que nos brinda una mejor interpretabilidad.
+
+```{r, echo=FALSE}
+set.seed(141293)
+random_forest <- randomForest(stroke ~ .,
+                    train_r,
+                    mtry = 4,
+                    nodesize = 2,
+                    ntree = 2500,
+                    importance = TRUE)
+random_forest
+```
+
+
+```{r gráfico de importancia 2, echo=FALSE}
+imp <- data.frame(random_forest$importance)
+  graf <- ggplot(imp, aes(x=reorder(rownames(imp),MeanDecreaseAccuracy), y=MeanDecreaseAccuracy)) +
+  geom_bar(stat="identity", fill="cadetblue2") +
+  coord_flip() + theme_bw(base_size = 8) +
+  labs(title="Gráfico 2.5: Importancia de Variables por MSE", x="Variables", y="MSE")
+  graf
+```
+
+La gráfica nos indica el incremento del error medio cuadrático, en caso de que los datos de la variable cambien, es decir, la importancia de la variable en el modelo.
+
+La variable más importante es *age*. Esta destaca por encima de las demás. La sigue *avg_glucose_level* y *bmi*. Las demás variables tienen una importancia similar y hay dos que tienen una importancia bastante menor, que son *hypertension* y *heart_disease*.
+
+#### 2.3.1.2 Predicción.
+
+En RandomForest se muestra si la predicción va a ser cierta o falsa clasificándolas entre las categorías *Yes* y *No*.
+
+```{r predicción y matriz de confusión 1, echo=FALSE}
+prediction_rf <- predict(random_forest, test_r, type = "class")
+prediction_rf %>%  head(5)
+```
+
+#### 2.3.1.3 Evaluación.
+
+```{r}
+confusionMatrix(data = prediction_rf, reference = test_r$stroke)
+```
+
+Como se puede apreciar el modelo tiene una buena precisión general del 90,76%. Siendo muy bueno en detectar casos negativos (sensitividad) y bueno aunque mejorable al detectar los casos objeto de estudio, los positivos (especificidad). Pero en líneas generales el modelo acertará entre un 89% y un 92% de las veces. Es importante resaltar que el principal riesgo a tener en cuenta es el de de los individuos que clasifica en el grupo de no y realmente pertenecen al contrario, ya que suman 109.
+En cuanto al Kappa, se observa un valor de 0,68, lo cual conduce a pensar que la tasa de buena clasificación es buena.
+
+```{r validación cruzada, echo=FALSE, warning=FALSE}
+set.seed(141293)
+# Crea el modelo de clasificación utilizando la función glm
+modelo.rfcv <- glm(as.factor(stroke) ~ ., data=train_r, family=binomial)
+# Realiza la validación cruzada utilizando la función cv.glm
+resultados.rfcv <- cv.glm(data=train_r, modelo.rfcv, K=50)
+```
+
+```{r resultados, echo=FALSE, warning=FALSE}
+# Muestra los resultados de la validación cruzada
+resultados.rfcv$delta
+```
+
+Se puede observar que la validación cruzada arroja un error moderadamente bajo, sobre todo comparando con el resto de modelos (*anexo*). También se usará la curva ROC para analizar la tasa de verdaderos positivos frente a negativos.
+
+##### Curva ROC
+
+```{r ROC TodasVariables, echo=FALSE}
+predictiontv <- predict(random_forest, test_r, type = "prob")[,2]
+
+predict.tv<- prediction(predictiontv, test_r$stroke)
+
+# Calculamos la curva ROC
+perf.tv <- performance(predict.tv,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.tv, lwd=2, lty=1, col="red", main = "Gráfico 2.6: Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+aucrf <- as.numeric(performance(predict.tv,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(aucrf,4)))
+```
+
+Se observa que el área debajo de la curva es bastante grande lo que reafirma que el modelo es bastante sólido y bueno prediciendo.
+
+### 2.3.2 Método 2: Modelo refinado
+
+Se va a intentar simplificar el modelo utilizando las variables más significativas por su influencia en el error medio cuadrático. En el gráfico anterior se pudo observar que las variables más importantes eran *age, bmi y avg_glucose_level*.
+Se va a proceder a hacer el modelo con esas tres variables debido a que se puede emplear también como un modelo selector de variables.
+Simplificar un modelo es importante no solo porque incurre en una mejor interpretabilidad sino porque también es más fácil recolectar los datos objeto del estudio.
+
+```{r nuevo data.frame con selección de variables, echo=FALSE}
+brain_oversampled_imp3 <- brain_oversampled_r |>  
+  dplyr::select(stroke, age, avg_glucose_level, bmi)
+```
+
+#### 2.3.2.1 Entrenamiento
+
+Se escoge el nuevo data.frame con las 3 variables más importantes según el método.
+
+```{r división train/test, echo=FALSE}
+set.seed(141293)
+train_imp3 <- sample_frac(brain_oversampled_imp3, size = 0.7)
+test_imp3 <- setdiff(brain_oversampled_imp3, train_imp3)
+```
+
+```{r modelo, echo=FALSE}
+set.seed(141293)
+random_forest_imp3 <- randomForest(stroke ~ .,
+                    train_imp3,importance = TRUE)
+```
+
+```{r gráfico de importancia, echo=FALSE}
+imp_3 <- data.frame(random_forest_imp3$importance)
+  graf_imp3 <- ggplot(imp_3, aes(x=reorder(rownames(imp_3),MeanDecreaseAccuracy), y=MeanDecreaseAccuracy)) +
+  geom_bar(stat="identity", fill="cadetblue2") +
+  coord_flip() + theme_bw(base_size = 8) +
+  labs(title="Gráfico 2.7: Importancia de Variables por MSE", x="Variable", y="MSE")
+  graf_imp3
+```
+
+Se observa que la importancia de las variables en el error medio cuadrático se mantienen similares.
+
+#### 2.3.2.2 Predicción.
+
+```{r predicción y matriz de confusión 2, echo=FALSE}
+prediction_rf_imp3 <- predict(random_forest_imp3, test_imp3, type = "class")
+prediction_rf_imp3 %>% head(5)
+```
+
+#### 2.3.2.3 Evaluación.
+
+```{r}
+confusionMatrix(data = prediction_rf_imp3, reference = test_imp3$stroke)
+```
+
+Se ha simplificado mucho el modelo sin perder apenas un 1% de precisión para el conjunto test. Aunque igual que el modelo anterior, es algo más débil en la especificidad, acertando el 64,18% de los casos. El valor de kappa en esta ocasión sigue reflejando que es un modelo moderadamente bueno aunque también ha bajado un poco y los falsos negativos han aumentado en unos 20 individuos. Todo esto es importante tenerlo en cuenta a la hora de ver si simplificar o no el modelo.
+
+```{r validación cruzada de 3 variables, echo=FALSE}
+set.seed(141293)
+# Crea el modelo de clasificación utilizando la función glm
+modelo.cvimp <- glm(as.factor(stroke) ~ ., data=train_imp3, family=binomial)
+# Realiza la validación cruzada utilizando la función cv.glm
+resultados.cvimp <- cv.glm(data=train_imp3, modelo.cvimp, K=50)
+```
+```{r  echo=FALSE}
+# Muestra los resultados de la validación cruzada
+resultados.cvimp$delta
+```
+
+El error detectado por el método de la validación cruzada en el conjunto de datos de entrenamiento ha subido en unos dos puntos aproximadamente, lo que induce a pensar que tiene algo más de sesgo sin ser algo preocupante.
+
+##### Curva ROC
+
+```{r RF imp, echo=FALSE}
+# Hacemos predicciones con el modelo en el conjunto de test
+predictionimp3 <- predict(random_forest_imp3, test_imp3, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.imp3<- prediction(predictionimp3, test_imp3$stroke)
+
+# Calculamos la curva ROC
+perf.imp3 <- performance(predict.imp3,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.imp3, lwd=2, lty=1, col="red", main = "Gráfico 2.8: Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+aucimp3 <- as.numeric(performance(predict.imp3,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(aucimp3,4)))
+
+```
+
+El área bajo la curva es prácticamente idéntica a a la anterior, por lo que se podría asumir que es una buena simplificación del modelo.
+
+
+# 3. COMPARACIÓN Y CONCLUSIÓN DE LOS MODELOS.
+
+Amtes de comenzar, se visualizará una tabla comparando los estadísticos de los dos modelos seleccionados. Ambos son con todas las variables en primer lugar y una variante con las variables más importantes (*age*, *bmi* y *avg_glucose_level*).
+
+```{r, echo= FALSE}
+Indicadores <- c( " Accuracy ", " Specificity ", " Curva ROC ", " Kappa ", " Sensitivity ")
+Modelo1 <- c( "0,9121", "0,6648", "0,9443", "0,6962", "0,9727")
+Modelo2<- c( "0,9076", "0,6877", "0,9434", "0,6894", "0,9614")
+Modelo1.1 <- c( "0,9121", "0,6390", "0,9361", "0,6896", "0,9790")
+Modelo2.1 <- c( "0,8975", "0,6418", "0,9353", "0,6497", "0,9600")
+```
+
+```{r, echo=FALSE}
+# Crear una tabla a partir de los vectores
+variables_comparacion <- data.frame(Indicadores, Modelo1, Modelo2, Modelo1.1, Modelo2.1)
+
+# Crear una tabla en formato HTML a partir de la tabla
+html_table_comparacion <- htmlTable(variables_comparacion, rnames = FALSE)
+htmlTable(html_table_comparacion,
+          caption = "Tabla 3.1: Modelos de clasificación estimados", tfoot= "Modelo 1: XGBoost usando todas las variables.
+          Modelo 2: RandomForest usando todas las variables.
+          Modelo 1.1: XGBoost según el MSE.
+          Modelo 2.1: Random Forest según el MSE.")
+```
+
+En primer lugar, se han realizado los modelos de **XGBoost** y **RandomForest** con todas las variables, debido a que son **modelos robustos** y toleran bien aspectos como la no transformación de las variables. Posteriormente, se ha realizado una variante de estos modelos seleccionando las variables según su **error cuadrático medio** (MSE).
+
+Ambos modelos presentan una tasa de **acierto general** alta (*accuracy*) rondando el 91% y una **especificidad** (*specificity*) del 66 y 68% respectivamente. Según los **estadísticos de bondad** (*Curva ROC y Kappa*), ambos modelos son, por lo general, estimadores buenos.
+En los modelos refinados los resultados obtenidos rondan el 90% de precisión general y una reducción en torno a 2,5 y 4 puntos respectivamente de la especificidad. Por último, los estadísticos de bondad se mantienen en rangos considerados como aceptables en el índice Kappa y óptimos en la curva ROC.
+
+Desde una visión de negocio, el desarrollo de estos modelos puede tener **varios objetivos**, desde la **minimización** de costes hasta la **optimización** de algún resultado concreto. En este estudio, el objetivo principal se enfoca en tener una tasa de acierto elevada de los pacientes que estén sufriendo un derrame cerebral, sin importar tanto una variación extrema en los costes de desarrollo del modelo. Por ello, el modelo que se considerará como el más idóneo es el elaborado mediante el método de **RandomForest** con todas las variables, ya que se pueden predecir de forma correcta 69 casos de ictus por cada 100.
+
+Si el enfoque fuese orientado hacia la reducción de costes, se tendrían en cuenta aspectos como la tasa de aciertos general o la reducción de **falsos positivos** (medido como 1-*sensitivity*), buscando el modelo que mejor puntúe en este estadísitco. En este caso, la elección del mejor modelo pasaría a ser el **modelo refinado de XGBoost**, ya que solo deja a un 2% de los pacientes hospitalizados que no deberían estar hospitalizados, manteniendo el resto de estadísticos en rangos adecuados. Con esto se ahorrarían costes hospitalarios si este fuera el objetivo del modelo.
+
+El análisis se ha realizado con datos ya recogidos y devolviendo unos resultados bastante buenos. El modelo seleccionado, tendría que **integrarse** dentro de un organismo (sistema sanitario) que fuese introduciendo nuevos datos priorizando el criterio médico y re-entrenándolo pasado un período de tiempo de prueba para ver si generaliza bien en un ambiente de total incertidumbre. Esto es **esencial** en todo modelo estadístico, debido a que los factores pueden variar a lo largo del tiempo, en especial cuando se trata de características atribuibles al ser humano. Con esto se pretende la **no obsolescencia** del modelo y la **máxima generalización** posible.
+
+# ANEXO: 
+
+# Modelo Regresión Logística
+
+En estadística, la **regresión logística** es un tipo de análisis de regresión utilizado para predecir el resultado de una variable categórica en función de las variables independientes o predictoras. Es útil para modelar la probabilidad de un evento ocurriendo en función de otros factores.
+Las **condicones** que se deben de dar para obtener la mayor precisión en el análisis con una regresión lineal son: 
+• Respuesta binaria: La variable dependiente ha de ser binaria.
+• Independencia: las observaciones han de ser independientes.
+• Multicolinealidad: se requiere de muy poca a ninguna multicolinealidad entre los predictores (para regresión logística múltiple).
+• Linealidad entre la variable independiente y el logaritmo natural de odds.
+
+
+## Remuestreo 
+
+```{r} 
+ 
+imbalanceRatio(as.data.frame(brain_stroke), classAttr = "stroke") 
+``` 
+
+```{r} 
+brain_stroke_n <- brain_stroke
+brain_stroke_n$gender <- as.integer(brain_stroke_n$gender)
+brain_stroke_n$hypertension <- as.integer(brain_stroke_n$hypertension)
+brain_stroke_n$heart_disease <-as.integer(brain_stroke_n$heart_disease)
+brain_stroke_n$ever_married <- as.integer(brain_stroke_n$ever_married)
+brain_stroke_n$work_type <- as.integer(brain_stroke_n$work_type)
+brain_stroke_n$residence_type <- as.integer(brain_stroke_n$residence_type)
+brain_stroke_n$smoking_status <- as.integer(brain_stroke_n$smoking_status)
+``` 
+
+```{r} 
+set.seed(141293) #hay que establecer semilla para la reproducibilidad 
+brain_oversampled <- oversample(as.data.frame(brain_stroke_n), classAttr = "stroke", ratio = 0.25, method = "SMOTE") 
+``` 
+
+```{r} 
+brain_oversampled %>% group_by(stroke) %>% summarize(n = n()) %>% mutate(prop = round(n / sum(n), 2)) 
+```
+
+## Método 1: Best Subset.
+
+El proceso de **best subset selection** consiste en evaluar todos los posibles modelos que se pueden crear por combinación de los predictores disponibles. El algoritmo a seguir para k predictores es: Se genera lo que se conoce como modelo nulo (M0), que es el modelo sin ningún predictor.
+El **coeficiente de determinación ajustado** es la medida que define el porcentaje explicado por la varianza de la regresión de acuerdo con la varianza experimentada por las variables aplicadas. Este penaliza la inclusión de aquellas variables que no resultan trascendentales para la variable real.
+
+**División de los datos** en dos subconjuntos (train/test) con la finalidad de entrenar el modelo y posteriormente evaluarlo.
+
+```{r, echo=FALSE}
+rlog_brain <- list()
+
+rlog_brain$original <- brain_oversampled
+```
+
+```{r test/train rlog 1, echo=FALSE}
+set.seed(141293)
+
+rlog_brain$train <- sample_frac(brain_oversampled, size = 0.7) #division del df, parte de train la división será 70/30
+rlog_brain$test <- setdiff(xg_brain$original, xg_brain$train) #esta función lo que indica es que del df1 coja los que son diferetes a con el df2
+
+```
+
+```{r, echo=FALSE}
+regfit.full <- regsubsets(stroke ~ ., data = rlog_brain$train , method = "exhaustive" , nvmax = 10)
+resumen <- summary(regfit.full)
+resumen
+```
+
+
+```{r, echo=FALSE}
+resumen_adjr2 <- data.frame(subconjunto = 1:10,
+                 adjr2 = resumen$adjr2)
+
+resumen_adjr2 |>  ggplot(aes(x=subconjunto, y=adjr2)) + 
+  geom_line() + 
+  geom_point() +
+  ggtitle("Evolución del Coeficiente de determinación ajustado (R^2)")
+```
+
+En este caso, la mejor elección se situa entre el modelo de 7 u 8 variables, para realizar el modelo se seleccionarán, por tanto, ocho variables que es el que más explicativo.
+
+```{r, echo=FALSE}
+plot(regfit.full, scale = "adjr2")
+```
+
+Como se puede observar en el gráfico anterior, se excluirán las variables *bmi* u *smoking_status*. Además, debido a la condición de multicolinealidad, se ha omitido la variable *work_type* ya que presentaba un alto grado de correlación con la variable age.
+
+```{r selección de variables para el modelo, echo=FALSE}
+brain_oversampled_subset <- brain_oversampled |>  
+dplyr::select(-bmi, -smoking_status, -work_type)
+```
+
+```{r, echo=FALSE}
+brain_oversampled_subset %>%
+group_by(stroke) %>%
+summarize(n = n()) %>%
+mutate(prop = round(n / sum(n), 2))
+```
+
+```{r copia_rlog, echo=FALSE}
+rlog_brain <- list()
+
+rlog_brain$original <- brain_oversampled_subset
+```
+
+**División de los datos** en dos subconjuntos (train/test) con la finalidad de entrenar el modelo y posteriormente evaluarlo.
+
+```{r test/train rlog 2, echo=FALSE}
+set.seed(141293)
+
+rlog_brain$train <- sample_frac(brain_oversampled_subset, size = 0.7) #division del df, parte de train la división será 70/30
+rlog_brain$test <- setdiff(rlog_brain$original, rlog_brain$train) #esta función lo que indica es que del df1 coja los que son diferetes a con el df2
+```
+
+### Entrenamiento 
+
+```{r, echo=FALSE}
+modelo_glm1 <- glm(
+    stroke ~ gender + age + hypertension + heart_disease + ever_married + avg_glucose_level + residence_type,
+    data = rlog_brain$train, family = binomial
+  )
+summary(modelo_glm1)
+```
+
+Como se puede observar, las variables más representativas de este modelo son *age*, *avg_glucose_level* y *hypertension*. 
+
+Obtención de los coeficientes:
+
+```{r, echo=FALSE}
+coef(modelo_glm1)
+summary(modelo_glm1)$coef
+summary(modelo_glm1)$coef[, 4]
+```
+
+### Predicciones
+
+```{r, echo=FALSE}
+modelo1_glm.probs <- predict(modelo_glm1, rlog_brain$test, type = "response")
+```
+
+```{r, echo=FALSE}
+modelo1_glm.pred <- rep("No", 1774)
+modelo1_glm.pred[modelo1_glm.probs > .5] <-  "Yes"
+```
+
+```{r, echo=FALSE}
+table(modelo1_glm.pred, rlog_brain$test$stroke)
+mean(modelo1_glm.pred == rlog_brain$test$stroke)
+mean(modelo1_glm.pred != rlog_brain$test$stroke)
+```
+
+### Evaluacion 
+
+**Matriz de confusión**
+
+```{r matriz de confusión 1, echo=FALSE}
+matriz.confusion <- table(modelo1_glm.pred, rlog_brain$test$stroke)
+confusionMatrix(matriz.confusion)
+```
+
+**Curva ROC**
+
+```{r, echo=FALSE}
+predict.rocr <- prediction(modelo1_glm.probs, rlog_brain$test$stroke)
+perf.rocr <- performance(predict.rocr,"tpr","fpr") #True y False postivie.rate
+aucrl <- as.numeric(performance(predict.rocr ,"auc")@y.values)
+plot(perf.rocr, lwd=2, lty=1, col="red", main = paste('Area Bajo la Curva =',round(aucrl,4))) + abline(a=0, b= 1, lwd=1, lty=5)
+```
+
+En cuanto, al accuracy del modelo, este ha obtenido un 82,37% de precisión cuando se ha evaluado con el conjunto de test. Pero la especifidad de este modelo tan solo es del 36,39%, por tanto, este modelo que tiene una precisión medianamente elevada no es un buen modelo debido a la especifidad que presenta.
+
+# Método 2: Refinado
+
+Este modelo será construido tan solo con las variables que, como se ha expuesto en el apartado anterior, tienen una mayor importancia en el modelo. Siguiendo el mismo procedimiento que en el anterior y las mismas condiciones, para después poder realizar una comparación verídica de ambos modelos. 
+
+## Entrenamiento 
+
+```{r, echo=FALSE}
+modelo2_glm <- glm(
+    stroke ~ age + hypertension + avg_glucose_level,
+    data = rlog_brain$train, family = binomial
+  )
+summary(modelo2_glm)
+```
+
+Obtención de los coeficientes:
+
+```{r, echo=FALSE}
+coef(modelo2_glm)
+summary(modelo2_glm)$coef
+summary(modelo2_glm)$coef[, 4]
+```
+
+## Predicciones
+
+```{r, echo=FALSE}
+modelo2_glm.probs <- predict(modelo2_glm, rlog_brain$test, type = "response")
+```
+
+```{r, echo=FALSE}
+modelo2_glm.pred <- rep("No", 1774)
+modelo2_glm.pred[modelo2_glm.probs > .5] <-  "Yes"
+```
+
+```{r, echo=FALSE}
+table(modelo2_glm.pred, rlog_brain$test$stroke)
+mean(modelo2_glm.pred == rlog_brain$test$stroke)
+mean(modelo2_glm.pred != rlog_brain$test$stroke)
+```
+
+## Evaluacion 
+
+**Matriz de confusión**
+
+```{r matriz de confusión, echo=FALSE}
+matriz.confusion <- table(modelo2_glm.pred, rlog_brain$test$stroke)
+confusionMatrix(matriz.confusion)
+```
+
+**Curva ROC**
+
+```{r, echo=FALSE}
+predict2.rocr <- prediction(modelo2_glm.probs, rlog_brain$test$stroke)
+perf2.rocr <- performance(predict2.rocr,"tpr","fpr") #True y False postivie.rate
+aucrl2 <- as.numeric(performance(predict2.rocr ,"auc")@y.values)
+plot(perf.rocr, lwd=2, lty=1, col="red", main = paste('Area Bajo la Curva =',round(aucrl2,4))) + abline(a=0, b= 1, lwd=1, lty=5)
+```
+
+El modelo formado con las variables de mayor importancia, cuenta con una precisión del 82,02% y una especifidad de 0,3438%. Por tanto, se puede concluir que el mejor modelo de regresión logística sería el modelo 2, es decir, el modelo compuesto por las variables más importantes. Ya que este presenta, practicamente, la misma precisión y tan solo un 2% menos de especifidad. Con lo cual, por el pincipio de parsimonia será mejor el modelo 2. 
+
+# Modelo de análisis discriminante cuadrático
+
+Se va a utilizar un **LDA o QDA** como método de clasificación a modo de observar cómo estima el modelo. Antes de comenzar es relevante tener en cuenta ciertas condiciones que tener en cuenta en este tipo de modelos de clasificación.
+
+Las condiciones que se deben cumplir para que un Análisis Discriminante Lineal sea válido son:
+
+- Cada predictor que forma parte del modelo se distribuye de forma **normal** en cada una de las clases de la variable respuesta. En el caso de múltiples predictores, las observaciones siguen una distribución normal multivariante en todas las clases.
+
+- La **varianza** del predictor es **igual** en todas las clases de la variable respuesta. En el caso de múltiples predictores, la matriz de covarianza es igual en todas las clases. Si esto no se cumple se recurre a *Análisis Discriminante Cuadrático (QDA)*.
+
+Cuando la condición de normalidad no se cumple, los modelos pierden precisión pero aun así puede llegar a clasificaciones **relativamente buenas**.
+
+Como se ha visto anteriormente, no se puede asumir normalidad univariante ni multivariante, así como varianza constante, por lo que se va a optar por usar el *QDA* debido a su mayor robustez y porque incurrirá en menos sesgo.
+
+El *análisis discriminante cuadrático* es un método de clasificación utilizado en estadísticas y machine learning para separar dos o más grupos o clases basándose en un conjunto de variables predictoras. Este método se basa en el análisis discriminante lineal, pero utiliza una función discriminante cuadrática en lugar de lineal para separar las clases.
+
+El análisis discriminante cuadrático es útil cuando se tiene un conjunto de datos con dos o más clases y se quiere predecir a qué clase pertenece un nuevo caso basándose en un conjunto de variables predictoras. Es especialmente útil cuando las **clases no están perfectamente separadas** por una línea recta y se necesita una función más flexible para separarlas, que es justamente lo que pasa en el caso de la base de datos, lo que **justifica** el uso de este modelo.
+
+## Método 1: Usando todas las variables.
+
+En primera instancia, se usarán todas las variables para clasificar la variable `stroke` con el fin de analizar el modelo y después se intentará refinarlo para obtener un modelo lo más preciso posible con el mínimo de variables posibles.
+
+### Entrenamiento.
+
+Se escogen un 80% de las observaciones para el conjunto de entrenamiento o *train* y el resto para el de prueba o *test*
+
+```{r entrenamiento para todas las variables, echo=FALSE}
+set.seed(141293)
+entrenamiento1 <- sample(x = nrow(brain_oversampled), size = nrow(brain_oversampled)*0.8, replace = FALSE)
+# Subgrupo de datos de entrenamiento
+stroke.train1 <- brain_oversampled[entrenamiento1,]
+# Subgrupo de datos de test
+stroke.test1 <- brain_oversampled[-entrenamiento1,]
+```
+
+### Predicción.
+
+```{r QDA-Todas las variables, echo=FALSE}
+modelo.qda1 <- train(as.factor(stroke) ~ . ,
+                          method ='qda', 
+                          data=stroke.train1)
+
+modelo.qda1
+```
+
+### Evaluación 
+
+```{r MATRIZ-Todas las variables, echo=FALSE}
+confusionMatrix(as.factor(stroke.test1$stroke), predict(modelo.qda1, stroke.test1))
+```
+
+Como se puede observar con todas las variables se obtienen resultados que a priori se pueden considerar buenos, como la **sensitividad** que es la tasa de verdaderos positivos del modelo. En este caso, el modelo ha identificado correctamente el 90.57% de las veces a las instancias que pertenecen a la clase positiva(1), en este caso es cómo es de bueno de modelo identificando casos negativos y se puede observar que es bastante preciso.
+La **precisión** que se refiere a la tasa de aciertos del modelo. En este caso, el modelo ha acertado en el 81.42% de los casos.
+Sin embargo la **especificidad** que es la tasa de verdaderos negativos del modelo. En este caso, el modelo ha identificado correctamente el 52.3% de las veces a las instancias que pertenecen a la clase negativa (2). En este caso es el más importante porque es el objetivo principal del estudio, identificar correctamente los verdaderos positivos en cuanto a infarto cerebral se refiere. El modelo es bastante escaso en este ámbito.
+
+Como métodos de evaluación, han sido probado más modelos a parte de los que guían el trabajo que también pueden ser válidos según el contexto, un ejemplo es *la validación cruzada*. La cual, es una técnica utilizada en machine learning para evaluar el rendimiento de un modelo de clasificación. Se utiliza para evaluar cómo el modelo se desempeña en datos que no se han utilizado para entrenarlo, lo que proporciona una medida más precisa del rendimiento del modelo en la práctica.
+
+En la validación cruzada, se **dividen** los datos de entrenamiento en varios conjuntos o "pliegues" y se entrena el modelo utilizando un conjunto de datos y se evalúa su rendimiento en el conjunto de datos restante. Esto se repite varias veces, cada vez utilizando un conjunto diferente de datos como el conjunto de prueba y el resto como el conjunto de entrenamiento. Al final, se calcula una medida promedio del rendimiento del modelo en todos los pliegues, lo que proporciona una evaluación más precisa del rendimiento del modelo en datos que no se han utilizado para entrenarlo.
+
+La validación cruzada es útil para evitar el **sobreajuste del modelo**, es decir, la capacidad del modelo para funcionar bien en los datos de entrenamiento pero mal en datos nuevos. Al evaluar el rendimiento del modelo en datos que no se han utilizado para entrenarlo, se puede tener una idea más precisa de cómo se desempeñará el modelo en la práctica. Además, la validación cruzada es útil para comparar el rendimiento de diferentes modelos y elegir el que mejor se adapte a los datos.
+
+También se usará la curva ROC como se ha venido haciendo anteriormente
+
+```{r CV-Todas las variables, echo=FALSE}
+modelo.qdacv1 <- glm(as.factor(stroke) ~ . , data=stroke.train1, family=binomial)
+
+cv.error_tv <- cv.glm(data=stroke.train1, modelo.qdacv1, K=50)
+cv.error_tv$delta
+```
+
+Se oberva que los delta asociados son de 0,11 lo que a priori parece poco teniendo en cuenta que es un modelo de clasificación binomial pero sin compararlo con otros modelos no es posible tener una idea clara.
+
+```{r ROC-TV, echo=FALSE}
+
+# Hacemos predicciones con el modelo en el conjunto de test
+predictions1 <- predict(modelo.qda1, stroke.test1, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.rocr1 <- prediction(predictions1, stroke.test1$stroke)
+
+# Calculamos la curva ROC
+perf.rocr1 <- performance(predict.rocr,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.rocr1, lwd=2, lty=1, col="red", main = "Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+auc1 <- as.numeric(performance(predict.imp3,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(auc1,4)))
+```
+
+Se puede observar un área por debajo de la curva bastante amplia sin llegar a ser muy buena, reflejo claro de los estadísticos analizados anteriormente
+
+## Método 2: Usando Best-Subsets
+
+El método de selección de variables de best subset es una técnica utilizada en estadísticas y machine learning para seleccionar el **subconjunto óptimo** de variables de un conjunto más grande para utilizar en un modelo de clasificación. Este método se basa en la idea de evaluar diferentes combinaciones de variables y elegir la que mejor se ajuste al modelo y tenga el mejor rendimiento en términos de medidas de evaluación como la precisión o la sensibilidad.
+
+Para utilizar el método de selección de variables de best subset, se siguen los siguientes pasos:
+
+1. Seleccionar un conjunto de **variables candidatas** a incluir en el modelo.
+2. Evaluar todas las posibles **combinaciones** de variables y seleccionar la que tenga el **mejor rendimiento** en términos de medidas de evaluación.
+3. **Repetir** el proceso para **diferentes tamaños** de subconjunto de variables, desde el subconjunto más pequeño hasta el más grande.
+4. Seleccionar el subconjunto de variables que tenga el mejor rendimiento en **todos los tamaños** de subconjunto evaluados.
+
+```{r test/bestsubset, echo=FALSE}
+set.seed(141293)
+
+train_selection <- sample_frac(brain_oversampled, size = 0.7) #division del df, parte de train la división será 70/30
+test_selection <- setdiff(brain_oversampled, train_selection) #esta función lo que indica es que del df1 coja los que son diferetes a con el df2
+
+```
+
+```{r selección por best subset, echo=FALSE}
+regfit.full <- regsubsets(stroke ~ ., data = train_selection, method = "exhaustive" , nvmax = 10)
+resumen <- summary(regfit.full)
+resumen
+```
+
+En forma de tabla, se muestra qué variables escoger en función del número de variables que se quieran seleccionar. En este caso, se va a optar por intentar resumir el modelo lo máximo posible sin perder precisión.
+
+```{r representacion best subset, echo=FALSE}
+resumen_adjr2 <- data.frame(subconjunto = 1:10,
+                 adjr2 = resumen$adjr2)
+
+resumen_adjr2 |>  ggplot(aes(x=subconjunto, y=adjr2)) + 
+  geom_line() + 
+  geom_point() +
+  ggtitle("Evolución del Coeficiente de determinación ajustado (R^2)")
+```
+
+En este gráfico se puede observar que *R^2* no aumenta a penas a partir de la selección de 7 variables por lo que serán las seleccionadas para hacer predicciones.
+
+```{r, echo=FALSE}
+coef(regfit.full, 10)
+```
+```{r, echo=FALSE}
+brain_after_subset <- brain_oversampled %>% dplyr::select(-bmi, -gender, -residence_type)
+```
+
+### Entrenamiento.
+
+```{r seleccion para best subset}
+set.seed(141293)
+entrenamiento2 <- sample(x = nrow(brain_after_subset), size = nrow(brain_after_subset)*0.8, replace = (FALSE))
+# Subgrupo de datos de entrenamiento
+stroke.train2 <- brain_after_subset[entrenamiento2,]
+# Subgrupo de datos de test
+stroke.test2 <- brain_after_subset[-entrenamiento2,]
+```
+
+### Predicción.
+
+```{r QDA-BESTSUBEST, echo=FALSE}
+modelo.qda2 <- train(as.factor(stroke) ~ . ,
+                          method ='qda', 
+                          data=stroke.train2)
+
+modelo.qda2
+```
+
+
+### Evaluación.
+
+```{r MATRIZ-BESTSUBSET, echo=FALSE}
+confusionMatrix(as.factor(stroke.test2$stroke), predict(modelo.qda2, stroke.test2))
+```
+
+Como se puede apreciar se ha perdido un poco de precisión general en el modelo a costa de reducir un poco la complejidad de este. Pero debido a las variables que faltan (*bmi, gender y residence_type*) no merece mucho la pena excluirlas porque son datos relativamente sencillos de extraer.
+
+```{r CV-BESTSUBSET, echo=FALSE, echo=FALSE}
+modelo.qdacv2 <- glm(as.factor(stroke) ~ . , data=stroke.train2, family=binomial)
+
+cv.error_bsb <- cv.glm(data=stroke.train2, modelo.qdacv2, K=50)
+cv.error_bsb$delta
+```
+
+Además se incurre en un poco más de error por lo que no sería un modelo preferible ante seleccionar todas las variables.
+
+```{r BEST SUBSET, echo=FALSE}
+# Hacemos predicciones con el modelo en el conjunto de test
+predictions2 <- predict(modelo.qda2, stroke.test2, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.rocr2 <- prediction(predictions2, stroke.test2$stroke)
+
+# Calculamos la curva ROC
+perf.rocr2 <- performance(predict.rocr,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.rocr2, lwd=2, lty=1, col="red", main = "Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+auc2 <- as.numeric(performance(predict.rocr2,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(auc2,4)))
+```
+
+Además se percibe a simple vista una pérdida considerable en el área por debajo de la curva ROC. Lo que confirma que el método de selección utilizado no es el más idóneo. Además se incurre en un poco más de error por lo que no sería un modelo preferible ante seleccionar todas las variables.
+
+## Método 3: Usando variables normalizadas.
+
+Se van a usar las variables normalizadas para comprobar si hay una mejora de la precisión y justifica la pérdida de interpretabilidad o no.
+
+```{r modificación base de datos qda, echo=FALSE}
+brain_normalized_r <- brain_oversampled %>% cbind(age_n, bmi_n, avg_n) %>%  dplyr::select(-age, -bmi, -avg_glucose_level)
+```
+
+### Entrenamiento.
+
+```{r seleccion para vbles normalizadas}
+set.seed(141293)
+entrenamiento3 <- sample(x = nrow(brain_normalized_r), size = nrow(brain_after_subset)*0.8, replace = (FALSE))
+# Subgrupo de datos de entrenamiento
+stroke.train3 <- brain_normalized_r[entrenamiento3,]
+# Subgrupo de datos de test
+stroke.test3 <- brain_normalized_r[-entrenamiento3,]
+```
+
+### Predicción.
+
+```{r QDA-NORM, echo=FALSE}
+modelo.qda3 <- train(as.factor(stroke) ~ . ,
+                          method ='qda', 
+                          data=stroke.train3)
+
+modelo.qda3
+```
+
+### Evaluación.
+
+```{r MATRIZ-NORM, echo=FALSE}
+confusionMatrix(as.factor(stroke.test3$stroke), predict(modelo.qda3, stroke.test3))
+```
+
+Se puede observar que pese a tener las variables normalizadas no aumenta la especificidad ni la precisión general del modelo, así como cualquier otro estadístico, como el Kappa, que ha empeorado y más teniendo en cuenta de que no se partía de un buen modelo con respecto a este estadístico.
+
+```{r CV-NORM, echo=FALSE, echo=FALSE}
+modelo.qdacv3 <- glm(as.factor(stroke) ~ . , data=stroke.train3, family=binomial)
+
+cv.error_bsb <- cv.glm(data=stroke.train3, modelo.qdacv3, K=50)
+cv.error_bsb$delta
+```
+
+```{r NORM, echo=FALSE}
+# Hacemos predicciones con el modelo en el conjunto de test
+predictions3 <- predict(modelo.qda3, stroke.test3, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.rocr3 <- prediction(predictions3, stroke.test3$stroke)
+
+# Calculamos la curva ROC
+perf.rocr3 <- performance(predict.rocr,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.rocr3, lwd=2, lty=1, col="red", main = "Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+auc3 <- as.numeric(performance(predict.rocr3,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(auc3,4)))
+```
+
+El error sí se puede apreciar que disminuye pero no lo suficiente, analizando el resto de estadísticos como el kappa, para justificar la pérdida de interpretabilidad.
+
+## Método 4: Usando RandomForest.
+
+Una de las **principales ventajas** de Random Forest es su capacidad para seleccionar automáticamente las variables más importantes en el conjunto de datos y utilizarlas para realizar predicciones precisas.
+
+El método de selección de variables basado en Random Forest funciona de la siguiente manera:
+
+1. Se construye un **conjunto de árboles de decisión** utilizando una muestra aleatoria del conjunto de datos y un conjunto aleatorio de variables.
+
+2. Se evalúa la **importancia de cada variable** en el conjunto de datos utilizando la poda de nodos y la reducción de la impureza en cada árbol.
+
+3. Se seleccionan las variables más importantes basándose en su **importancia relativa** en el conjunto de árboles. Estas variables se utilizan entonces para construir el modelo final de clasificación.
+
+```{r Selección de variables con random forest, echo=FALSE}
+set.seed(141293)
+modelorf <- randomForest(formula= stroke ~ ., data=brain_oversampled, ntree=500, mtry=3)
+modelorf$importance
+```
+
+Se pueden apreciar la pureza de los nodos en todas las variables. Destacando dos que sobrepasan los 100 puntos. Para la selección se escogerán aquellas que sobrepasen los 90 ya que son evidentemente las más puras y que además son las más correlacionadas con `stroke`.
+
+```{r, echo=FALSE}
+brain_after_forest <- brain_oversampled %>% 
+  dplyr::select(age, hypertension, heart_disease, avg_glucose_level, stroke)
+```
+
+### Entrenamiento.
+
+```{r entrenamiento para r.forest, echo=FALSE}
+set.seed(141293)
+entrenamiento4 <- sample(x = nrow(brain_after_forest), size = nrow(brain_after_forest)*0.8, replace = FALSE)
+# Subgrupo de datos de entrenamiento
+stroke.train4 <- brain_after_forest[entrenamiento4,]
+# Subgrupo de datos de test
+stroke.test4 <- brain_after_forest[-entrenamiento4,]
+```
+
+### Predicción.
+
+```{r QDA-FOREST, echo=FALSE}
+modelo.qda4 <- train(as.factor(stroke) ~ . ,
+                          method ='qda', 
+                          data=stroke.train4)
+
+modelo.qda4
+```
+
+### Evaluación.
+
+```{r MATRIZ-FOREST, echo=FALSE}
+confusionMatrix(as.factor(stroke.test4$stroke), predict(modelo.qda4, stroke.test4))
+```
+
+Se puede observar nuevamente que se ha perdido precisión general(alrededor de 3 puntos), pero esta vez tenemos un modelo muy simple. Sería una posible elección si es necesario simplificar el modelo usando el mínimo de variables. Es necesario a tener en cuenta, que la **especificidad** ahora es inferior al 50% por lo que se podría acertar más en los casos de ictus positivos de forma totalmente aleatoria.
+
+```{r CV-FOREST, echo=FALSE}
+modelo.qdacv4 <- glm(as.factor(stroke) ~ . , data=stroke.train4, family=binomial)
+
+cv.error_rf <- cv.glm(data=stroke.train4, modelo.qdacv4, K=50)
+cv.error_rf$delta
+```
+
+El aumento del error en estos datos de nuevo no parece ser muy significativo aunque se debe tener en cuenta que es el mayor de todos los utilizados.
+
+```{r RANDOMFORESTQDA, echo=FALSE}
+# Hacemos predicciones con el modelo en el conjunto de test
+predictions4 <- predict(modelo.qda4, stroke.test4, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.rocr4 <- prediction(predictions4, stroke.test4$stroke)
+
+# Calculamos la curva ROC
+perf.rocr4 <- performance(predict.rocr,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.rocr4, lwd=2, lty=1, col="red", main = "Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+auc4 <- as.numeric(performance(predict.rocr4,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(auc4,4)))
+```
+
+Se aprecia que el índice ha bajado casi 10 puntos con respecto a sus predecesores pero con menos variables escogidas, al estar por encima del 80% se podría llegar a la conclusión de que es una buena simplificación del modelo, sin llegar a afirmar en ningún caso, que se dispone de un buen modelo para predecir infartos cerebrales.
+
+# Modelo Random Forest
+
+## Método 1: Con hiperparámetros predeterminados
+
+Se realiza un modelo random forest con los hiperparámetros sin modificar para comparar.
+Para clasificaciones los parámetros son los siguientes: mtry =  √ p =  3 y nodesize = 1, ntree = 500.
+
+```{r elaboración modelo 1, echo=FALSE}
+set.seed(141293)
+random_forest_d <- randomForest(stroke ~ ., train_r, importance = TRUE)
+```
+
+```{r predicción 1, echo=FALSE}
+
+randompred_d <- predict(random_forest_d, test_r, type='class')
+confusionMatrix(randompred_d, test_r$stroke)
+```
+Tanto la precisión, como la especifidad para predecir positivos es menor que el modelo random forest con los hiperparámetros modificados.
+
+## Método 2: Con variables normalizadas
+
+Se elabora un random forest con las variables normalizadas para ver si consigue mejorar la capacidad de predicción del modelos.
+
+### Entrenamiento.
+Se crea un data.frame supliendo las variables sin transformar por las transformadas y se entrena el modelo.
+```{r modificación base de datos RF, echo=FALSE}
+brain_normalized_r <- brain_oversampled %>% cbind(age_n, bmi_n, avg_n) %>%  dplyr::select(-age, -bmi, -avg_glucose_level)
+brain_normalized_r$stroke <- as.factor(brain_normalized_r$stroke)
+```
+
+```{r división train y test, echo=FALSE}
+set.seed(141293)
+train_n <- sample_frac(brain_normalized_r, size = 0.7)
+test_n <- setdiff(brain_normalized_r, train_n)
+```
+
+### Predicción.
+
+```{r elaboración modelo 2, echo=FALSE}
+set.seed(141293)
+random_forest_n <- randomForest(stroke ~ .,
+                    train_n,
+                    mtry = 4,
+                    nodesize = 2,
+                    ntree = 500,
+                    importance = TRUE)
+```
+```{r predicción 2, echo=FALSE}
+randompred2 <- predict(random_forest_n, test_n, type='class')
+randompred2 %>% head (5)
+```
+
+### Evaluación.
+
+```{r}
+confusionMatrix(randompred2, test_n$stroke)
+```
+Han bajado la precisión y la especificidad respecto a los modelos random forest con las variables no normalizadas.
+
+```{r roc norm, echo=FALSE}
+# Hacemos predicciones con el modelo en el conjunto de test
+predictionsrfn <- predict(random_forest_n, test_n, type = "prob")[,2]
+
+# Creamos el objeto utilizando las predicciones y las etiquetas del conjunto de test
+predict.rocrfn <- prediction(predictionsrfn, test_n$stroke)
+
+# Calculamos la curva ROC
+perf.rocrfn <- performance(predict.rocrfn,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.rocrfn, lwd=2, lty=1, col="red", main = "Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+auc3 <- as.numeric(performance(predict.rocr3,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(auc3,4)))
+```
+
+El área por debajo de la curva representa un menor coeficiente con respecto a las variables sin transformar por lo que se desecha la elección de las variables normalizadas para el análisis debido a la suma de la pérdida de interpretabilidad.
+
+### Bucle para hiperparámetros
+
+Se ha planteado un código que optimiza los hiperparámetros pero tarda una hora aproximadamente en ejecutarse, si se desea, se puede acudir al código adjuntado y en el *chunk name* cambiar el argumento *eval = FALSE* por *eval= TRUE* (chunk 152)
+
+```{r, eval= FALSE, echo=FALSE}
+set.seed(141293)
+mtry <- seq(1, 10, 1)
+nodesize <- seq(1, 8, 1)
+ntree <- seq(500,2500,500)
+
+hyper_grid <- expand.grid(mtry = mtry, nodesize = nodesize, ntree = ntree) 
+oob_err <- c()
+
+set.seed(141293)
+for (i in 1:nrow(hyper_grid)) {
+    random_forest2 <- randomForest(stroke ~ .,
+                        train,
+                        mtry = hyper_grid$mtry[i],
+                        nodesize = hyper_grid$nodesize[i],
+                        ntree = hyper_grid$ntree[i])
+                        
+    oob_err[i] <- random_forest2$err.rate[nrow(random_forest2$err.rate), "OOB"]
+}
+
+```
+
+```{r, eval= FALSE, echo=FALSE}
+best <- which.min(oob_err)
+hyper_grid$mtry[best] 
+hyper_grid$nodesize[best]
+hyper_grid$ntree[best]
+```
+
+# Modelo de NAIVE BAYES.
+
+El método de clasificación de Naive Bayes es una técnica de aprendizaje automático muy utilizada en problemas de clasificación. Algunas cosas que se pueden tener en cuenta al utilizar este método son las siguientes:
+
+* **La suposición de independencia condicional**: El método de Naive Bayes asume que los distintos atributos del conjunto de datos son independientes entre sí, lo que significa que el valor de un atributo no está correlacionado con el valor de los demás atributos. Esta suposición puede ser una simplificación excesiva en algunos casos y puede afectar al rendimiento del modelo, por lo tanto es un aspecto muy a tener en cuenta.
+
+* **La necesidad de una distribución normal**: El método de Naive Bayes suele prestar un mejor rendimiento cuando los atributos del conjunto de datos siguen una distribución normal o gaussiana. Si las variables seleccionadas no siguen una distribución normal, es posible que sea necesario aplicar algún tipo de transformación para tratar de normalizar los datos.
+
+* **El tratamiento de atributos faltantes**: Naive Bayes no permite tratar atributos faltantes de manera directa. Si hay atributos faltantes en el conjunto de datos, es necesario aplicar algún tipo de técnica para tratar de imputar o estimar los valores perdidos (missing values).
+
+* **La elección del tipo de distribución**: Permite elegir entre diferentes tipos de distribución para modelar los atributos del conjunto de datos. Algunos de los tipos de distribución más comunes son la distribución normal, la distribución Bernoulli y la distribución multinomial. Es importante elegir el tipo de distribución más adecuado para cada variable en función de su naturaleza y distribución.
+
+* **La elección de los parámetros del modelo**: Naive Bayes permite ajustar algunos parámetros del modelo, como la métrica de distancia o la suavización de Laplace. Es importante elegir los parámetros adecuados para cada problema y evaluar el impacto de cada uno en el rendimiento del modelo.
+
+
+
+## Método 1: Usando todas las variables.
+
+### Entrenamiento.
+
+```{r, echo = FALSE}
+set.seed(141293)
+
+train_selection <- sample_frac(brain_oversampled, size = 0.7) #division del df, parte de train la división será 70/30
+test_selection <- setdiff(brain_oversampled, train_selection) 
+```
+
+```{r, echo = FALSE}
+nb.fit <- naiveBayes(stroke ~ gender + age + hypertension + heart_disease + ever_married + work_type + residence_type + avg_glucose_level + bmi + smoking_status, data = train_selection)
+nb.fit
+```
+
+### Predicción.
+
+```{r, echo = FALSE}
+nb.class <- predict(nb.fit, test_selection)
+nb.class %>%  head(5)
+```
+
+### Evaluación.
+
+```{r, echo = FALSE}
+confusion_matrix <- table(nb.class, test_selection$stroke)
+confusion_matrix <- addmargins(confusion_matrix)
+confusion_matrix
+```
+
+```{r, echo = FALSE}
+confusionMatrix(as.factor(test_selection$stroke), predict(nb.fit, test_selection))
+```
+
+```{r ROC NB_RF1, echo=FALSE}
+predictionnb <- predict(nb.fit, test_selection, type = "raw")[,2]
+
+predict.nb<- prediction(predictionnb, test_selection$stroke)
+
+# Calculamos la curva ROC
+perf.nb <- performance(predict.nb,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.nb, lwd=2, lty=1, col="red", main = "Gráfico 2.6: Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+aucnb <- as.numeric(performance(predict.nb,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(aucnb,4)))
+```
+
+## Método 2: Usando Random Forest.
+
+Siguiendo la estructura del resto de modelos se hará una clasificación usando el método de selección de variables, Random Forest.
+
+```{r, echo = FALSE}
+set.seed(141293)
+
+random_forest <- randomForest(stroke ~ ., brain_oversampled, importance = TRUE)
+random_forest
+random_forest$importance
+```
+
+Como puede apreciarse en la tabla de resultados que nos proporciona Random Forest, las variables que destacan con mucha diferencia y las cuales se aplicarán en este modelo son; age, work_type, avg_glucose_level, bmi y smoking_status.
+
+### Entrenamiento.
+
+```{r, echo = FALSE}
+set.seed(141293)
+
+train_selection <- sample_frac(brain_oversampled, size = 0.7) #division del df, parte de train la división será 70/30
+test_selection <- setdiff(brain_oversampled, train_selection) 
+```
+
+```{r, echo = FALSE}
+nb.fit <- naiveBayes(stroke ~ age + work_type + avg_glucose_level + bmi + smoking_status, data = train_selection)
+nb.fit
+```
+
+### Predicción.
+
+```{r, echo = FALSE}
+nb.class <- predict(nb.fit, test_selection)
+nb.class %>%  head(5)
+```
+
+### Evaluación.
+
+```{r, echo = FALSE}
+confusion_matrix <- table(nb.class, test_selection$stroke)
+confusion_matrix <- addmargins(confusion_matrix)
+confusion_matrix
+```
+
+```{r, echo = FALSE}
+confusionMatrix(as.factor(test_selection$stroke), predict(nb.fit, test_selection))
+```
+
+
+```{r ROC NB_RF, echo=FALSE}
+predictionnb <- predict(nb.fit, test_selection, type = "raw")[,2]
+
+predict.nb<- prediction(predictionnb, test_selection$stroke)
+
+# Calculamos la curva ROC
+perf.nb <- performance(predict.nb,"tpr","fpr")
+
+# Dibujamos el gráfico de la curva ROC
+plot(perf.nb, lwd=2, lty=1, col="red", main = "Gráfico 2.6: Curva ROC") + abline(a=0, b= 1, lwd=1, lty=5)
+aucnb <- as.numeric(performance(predict.nb,"auc")@y.values)
+legend("bottomright",legend=paste(" AUC =",round(aucnb,4)))
+```
